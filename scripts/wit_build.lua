@@ -65,22 +65,23 @@ function BuildIndexes()
 			end
 		end
 	end
-	local cooking = GLOBAL.require("cooking")
-	if cooking ~= nil then
-		-- 正向索引: 料理→标签需求 (从 card_def 或 test() 推导)
-		-- 反向索引: 食材→可参与的料理 (用 test() 替代法验证)
-		for _, recipes in pairs(cooking.cookbook_recipes or {}) do
-			for fname, frecipe in pairs(recipes) do
-				WIT.cook_foods[fname] = frecipe
-			end
+end
+local cooking = GLOBAL.require("cooking")
+if cooking ~= nil then
+	-- 正向索引: 料理→标签需求 (从 card_def 或 test() 推导)
+	-- 反向索引: 食材→可参与的料理 (用 test() 替代法验证)
+	for _, recipes in pairs(cooking.cookbook_recipes or {}) do
+		for fname, frecipe in pairs(recipes) do
+			WIT.cook_foods[fname] = frecipe
 		end
-		for iname, idata in pairs(cooking.ingredients or {}) do
-			WIT.ingredient_tags[iname] = idata.tags
-		end
+	end
+	for iname, idata in pairs(cooking.ingredients or {}) do
+		WIT.ingredient_tags[iname] = idata.tags
+	end
 
-		-- 遍历所有 cookpot + portablecookpot 配方, 对每个食材建立反向索引
-		local cooker_types = {"cookpot", "portablecookpot"}
-		for _, cooker_type in ipairs(cooker_types) do
+	-- 遍历所有 cookpot + portablecookpot 配方, 对每个食材建立反向索引
+	local cooker_types = {"cookpot", "portablecookpot"}
+	for _, cooker_type in ipairs(cooker_types) do
 		for fname, frecipe in pairs(cooking.recipes[cooker_type] or {}) do
 			-- 为无 card_def 的配方注入硬编码示例
 			if frecipe.test and not frecipe.card_def and FALLBACK_CARD_DEF[fname] then
@@ -93,43 +94,43 @@ function BuildIndexes()
 			-- 只处理有 test() 和 card_def 的配方
 			if frecipe.test and frecipe.card_def and frecipe.card_def.ingredients then
 				for iname, _ in pairs(cooking.ingredients or {}) do
-					local item_tags = WIT.ingredient_tags[iname]
-					if item_tags then
-						local can_participate = false
-						-- 替代法: 逐一替换每个槽
-						for slot_idx = 1, #frecipe.card_def.ingredients do
-							local names, tags = {}, {}
-							for j, ci in ipairs(frecipe.card_def.ingredients) do
-								local name = ci[1]
-								for _ = 1, ci[2] do
-									if j == slot_idx then
-										name = iname
-									end
-									names[name] = (names[name] or 0) + 1
-									local ing_data = (cooking.ingredients or {})[name]
-									if ing_data then
-										for kk, vv in pairs(ing_data.tags) do
-											tags[kk] = (tags[kk] or 0) + vv
-										end
+				local item_tags = WIT.ingredient_tags[iname]
+				if item_tags then
+					local can_participate = false
+					-- 替代法: 逐一替换每个槽
+					for slot_idx = 1, #frecipe.card_def.ingredients do
+						local names, tags = {}, {}
+						for j, ci in ipairs(frecipe.card_def.ingredients) do
+							local name = ci[1]
+							for _ = 1, ci[2] do
+								if j == slot_idx then
+									name = iname
+								end
+								names[name] = (names[name] or 0) + 1
+								local ing_data = (cooking.ingredients or {})[name]
+								if ing_data then
+									for kk, vv in pairs(ing_data.tags) do
+										tags[kk] = (tags[kk] or 0) + vv
 									end
 								end
 							end
-							if frecipe.test("cookpot", names, tags) then
-								can_participate = true
-								break
-							end
 						end
-						if can_participate then
-							if not WIT.cook_by_ingredient[iname] then WIT.cook_by_ingredient[iname] = {} end
-							local exists = false
-							for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
-								if r.name == fname then exists = true; break end
-							end
-							if not exists then table.insert(WIT.cook_by_ingredient[iname], frecipe) end
+						if frecipe.test("cookpot", names, tags) then
+							can_participate = true
+							break
 						end
+					end
+					if can_participate then
+						if not WIT.cook_by_ingredient[iname] then WIT.cook_by_ingredient[iname] = {} end
+						local exists = false
+						for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
+							if r.name == fname then exists = true; break end
+						end
+						if not exists then table.insert(WIT.cook_by_ingredient[iname], frecipe) end
 					end
 				end
 			end
-		end
+			end
 	end
+end
 end
