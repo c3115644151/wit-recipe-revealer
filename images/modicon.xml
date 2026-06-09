@@ -1,0 +1,4 @@
+<texture>
+  <dimensions width="64" height="64"/>
+  <sprite name="modicon.tex" x="0" y="0" width="64" height="64"/>
+</texture>
