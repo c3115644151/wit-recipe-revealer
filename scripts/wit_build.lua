@@ -130,6 +130,5 @@ function BuildIndexes()
 				end
 			end
 		end
-	end
-	BuildConditionCache()
+		end
 end
