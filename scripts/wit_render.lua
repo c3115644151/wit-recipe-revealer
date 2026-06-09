@@ -4,7 +4,7 @@
 -- ============================
 -- 烹饪条件推导
 -- ============================
-function FormatCookCondition(recipe, ingredient_prefab)
+function FormatCookCondition(recipe, _)
 	if recipe.card_def and recipe.card_def.ingredients then
 		local agg = {}
 		for _, ci in ipairs(recipe.card_def.ingredients) do
@@ -17,7 +17,7 @@ function FormatCookCondition(recipe, ingredient_prefab)
 		end
 		local parts = {}
 		for tname, tval in pairs(agg) do
-			table.insert(parts, CN(tname) .. " ≥ " .. tval)
+			table.insert(parts, CN(tname) .. " " .. tval)
 		end
 		return parts
 	end
@@ -65,7 +65,7 @@ function RenderCardCooking(r, card_y)
 
 	local pri = WIT_CONTENT:AddChild(Text(NEWFONT, 18))
 	if pri then
-		pri:SetString("P" .. (r.priority or 0))
+		pri:SetString(WIT_TXT.PRIORITY .. (r.priority or 0))
 		pri:SetPosition(130, card_y + 30)
 		pri:SetColour(1, 0.88, 0.55, 1)
 	end

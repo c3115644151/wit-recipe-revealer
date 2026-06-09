@@ -16,6 +16,18 @@ icon = "modicon.tex"
 configuration_options =
 {
     {
+        name = "LANGUAGE",
+        label = "语言 / Language",
+        hover = "选择界面语言 / Select UI language",
+        options =
+        {
+            {description = "自动 (Auto)", data = "auto"},
+            {description = "中文", data = "zh"},
+            {description = "English", data = "en"},
+        },
+        default = "auto",
+    },
+    {
         name = "KEY_R",
         label = "R 键 - 来源查询",
         options =

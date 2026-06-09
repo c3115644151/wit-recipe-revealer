@@ -17,7 +17,7 @@ function CreatePopup(name, mode)
 
 	local left_root = ThePlayer.HUD.controls.left_root
 	if left_root == nil then left_root = ThePlayer.HUD.controls end
-	WIT_POPUP = left_root:AddChild(Widget("RRPopup"))
+	WIT_POPUP = left_root:AddChild(Widget("WITPopup"))
 	if WIT_POPUP == nil then return end
 
 	local crafting_hud = ThePlayer.HUD.controls.craftingmenu
@@ -64,7 +64,7 @@ function CreatePopup(name, mode)
 
 	local close = WIT_POPUP:AddChild(TextButton())
 	if close then
-		close:SetText("✕"); close:SetTextSize(20)
+		close:SetText(WIT_TXT.CLOSE); close:SetTextSize(20)
 		close:SetPosition(160, 160)
 		close:SetTextColour(0.5, 0.45, 0.38, 1); close:SetTextFocusColour(0.95, 0.85, 0.55, 1)
 		close:SetOnClick(ClosePopup)
@@ -75,7 +75,7 @@ function CreatePopup(name, mode)
 	for i, cat in ipairs(WIT_AVAIL_CATS) do
 		local tb = WIT_POPUP:AddChild(TextButton())
 		if tb then
-			tb:SetText(cat == "CRAFTING" and "制作" or "烹饪")
+			tb:SetText(cat == "CRAFTING" and WIT_TXT.TAB_CRAFTING or WIT_TXT.TAB_COOKING)
 			tb:SetTextSize(26)
 			tb:SetPosition((i - (#WIT_AVAIL_CATS + 1) / 2) * 130, tab_y)
 			tb:SetOnClick(function() SelectCategory(cat, true) end)

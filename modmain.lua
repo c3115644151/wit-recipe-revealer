@@ -54,6 +54,7 @@ WIT_OPEN_COOKPOT = nil  -- 当前打开的烹饪锅实体
 -- ============================
 -- 加载子模块
 -- ============================
+modimport("scripts/wit_lang")
 modimport("scripts/wit_tags")
 modimport("scripts/wit_build")
 modimport("scripts/wit_helpers")
