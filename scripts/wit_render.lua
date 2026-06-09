@@ -5,53 +5,27 @@
 -- 烹饪条件推导
 -- ============================
 function FormatCookCondition(recipe, _)
-	-- 通过二分法从 test() 推导精确的标签阈值
-	if WIT_cond_cache and WIT_cond_cache[recipe.name] then
-		return WIT_cond_cache[recipe.name]
+	if recipe.card_def and recipe.card_def.ingredients then
+		local agg = {}
+		for _, ci in ipairs(recipe.card_def.ingredients) do
+			local tags = WIT.ingredient_tags[ci[1]]
+			if tags then
+				for tname, tval in pairs(tags) do
+					agg[tname] = (agg[tname] or 0) + tval * ci[2]
+				end
+			end
+		end
+		local parts = {}
+		for tname, tval in pairs(agg) do
+			table.insert(parts, CN(tname) .. " ≥ " .. tval)
+		end
+		return parts
 	end
-	-- 还未缓存, 返回空
 	return {}
 end
 
--- 构建标签条件缓存 (在 BuildIndexes 之后调用)
-function BuildConditionCache()
-	if WIT_cond_cache then return end
-	WIT_cond_cache = {}
-	local cooking = GLOBAL.require("cooking")
-	local all_tags = {"meat","monster","veggie","fruit","egg","fish","sweetener","fat",
-	                  "dairy","inedible","seed","magic","decoration","precook","dried","frozen"}
-
-	for fname, frecipe in pairs(cooking.recipes["cookpot"] or {}) do
-		if frecipe.test then
-			local parts = {}
-			for _, tname in ipairs(all_tags) do
-				-- 先快速检测: 设此 tag=10, 其他 tag=0, 跑 test()
-				local sim_tags = {}
-				sim_tags[tname] = 10
-				if frecipe.test("cookpot", {}, sim_tags) then
-					-- test() 通过, 说明配方确实关心此 tag, 用二分法找精确阈值
-					local lo, hi = 0, 10
-					for _ = 1, 20 do
-						local mid = (lo + hi) / 2
-						sim_tags[tname] = mid
-						if frecipe.test("cookpot", {}, sim_tags) then
-							hi = mid
-						else
-							lo = mid
-						end
-					end
-					-- 如果阈值 > 0.01, 显示
-					if hi > 0.01 then
-						table.insert(parts, CN(tname) .. " ≥ " .. hi)
-					else
-						table.insert(parts, CN(tname) .. " > 0")
-					end
-				end
-			end
-			WIT_cond_cache[fname] = parts
-		end
-	end
-end
+-- 注意: 二分法因多标签条件(如饺子需蛋度+肉度+蔬菜度)不适用于此场景
+-- 当前使用 card_def 示例食材推导标签值, 仅作参考
 
 -- ============================
 -- 渲染合成配方卡片
