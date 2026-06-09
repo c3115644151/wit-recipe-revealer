@@ -1,5 +1,5 @@
--- rr_helpers: 通用辅助函数
--- 依赖: 全局 RR_POPUP, RR_NAME, RR_MODE, RR_CUR_CAT, RR_PAGE, RR_AVAIL_CATS, RR_CONTENT, RR_TAB_BTNS, RR_PG_TEXT, RR_PG_PREV, RR_PG_NEXT, RR_OPEN_COOKPOT
+-- wit_helpers: 通用辅助函数
+-- 依赖: 全局 WIT_POPUP, WIT_NAME, WIT_MODE, WIT_CUR_CAT, WIT_PAGE, WIT_AVAIL_CATS, WIT_CONTENT, WIT_TAB_BTNS, WIT_PG_TEXT, WIT_PG_PREV, WIT_PG_NEXT, WIT_OPEN_COOKPOT
 
 function GetHoverItem()
 	local hud_ent = TheInput:GetHUDEntityUnderMouse()
@@ -8,11 +8,11 @@ function GetHoverItem()
 end
 
 function ClosePopup()
-	if RR_POPUP ~= nil then RR_POPUP:Kill(); RR_POPUP = nil end
-	RR_NAME = nil; RR_MODE = nil; RR_CUR_CAT = nil; RR_PAGE = 1
-	RR_AVAIL_CATS = {}; RR_CONTENT = nil; RR_TAB_BTNS = {}
-	RR_PG_TEXT = nil; RR_PG_PREV = nil; RR_PG_NEXT = nil
-	RR_OPEN_COOKPOT = nil
+	if WIT_POPUP ~= nil then WIT_POPUP:Kill(); WIT_POPUP = nil end
+	WIT_NAME = nil; WIT_MODE = nil; WIT_CUR_CAT = nil; WIT_PAGE = 1
+	WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
+	WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
+	WIT_OPEN_COOKPOT = nil
 end
 
 -- ============================
@@ -124,7 +124,7 @@ end
 -- ============================
 function CanAutoCook(recipe)
 	if recipe == nil then return false end
-	local pot = RR_OPEN_COOKPOT
+	local pot = WIT_OPEN_COOKPOT
 	if pot == nil then return false end
 	if recipe.card_def == nil or recipe.card_def.ingredients == nil then return false end
 	if pot.replica.stewer ~= nil then
@@ -145,7 +145,7 @@ end
 -- ============================
 function AutoFillCookPot(recipe)
 	if ThePlayer == nil or recipe == nil then return end
-	local pot = RR_OPEN_COOKPOT
+	local pot = WIT_OPEN_COOKPOT
 	if pot == nil then return end
 	local inv = ThePlayer.replica.inventory
 	if inv == nil then return end

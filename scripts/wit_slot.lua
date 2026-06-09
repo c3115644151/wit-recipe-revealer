@@ -1,4 +1,4 @@
--- rr_slot: 物品图标 + 箭头
+-- wit_slot: 物品图标 + 箭头
 -- 依赖: 全局 Image, Text, TextButton, ImageButton
 
 function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_size, _, show_count)

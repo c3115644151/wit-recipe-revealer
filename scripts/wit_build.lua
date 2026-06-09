@@ -1,4 +1,4 @@
--- rr_build: 索引构建
+-- wit_build: 索引构建
 -- 依赖: RR, RR.ingredient_tags (全局)
 
 -- 为无 card_def 的配方提供硬编码示例组合 (来源: wiki Cookbook 卡 + test()验证)
@@ -52,8 +52,8 @@ local FALLBACK_CARD_DEF = {
 }
 
 function BuildIndexes()
-	if RR_data_built then return end
-	RR_data_built = true
+	if WIT_data_built then return end
+	WIT_data_built = true
 	for rname, recipe in pairs(AllRecipes) do
 		local prod = recipe.product or rname
 		RR.by_product[prod] = RR.by_product[prod] or {}

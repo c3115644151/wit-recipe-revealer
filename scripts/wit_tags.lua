@@ -1,4 +1,4 @@
--- rr_tags: 中文标签映射
+-- wit_tags: 中文标签映射
 -- 通过全局变量 TAG_CN / CN 暴露
 
 TAG_CN = {

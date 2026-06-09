@@ -1,5 +1,5 @@
--- rr_sort: 排序 + 跳转
--- 依赖: 全局 RR_NAME, RR_CONTENT, RR_POPUP
+-- wit_sort: 排序 + 跳转
+-- 依赖: 全局 WIT_NAME, WIT_CONTENT, WIT_POPUP
 
 function GetRecipeBuildState(recipe_name)
 	if ThePlayer == nil or ThePlayer.HUD == nil then return "unknown" end
@@ -29,7 +29,7 @@ function SortRecipesByBuildable(recipes)
 		if r and r.ingredients then
 			local avail = {}
 			for _, v in ipairs(bp_items) do
-				local name = RR_COOKING_ALIASES[v] or v
+				local name = WIT_COOKING_ALIASES[v] or v
 				avail[name] = (avail[name] or 0) + 1
 			end
 			local cnt = 0
@@ -63,7 +63,7 @@ function SortCookingByAvailable(recipes)
 	local cooking = GLOBAL.require("cooking")
 	local prefabs, tags = {}, {}
 	for _, v in ipairs(prefablist) do
-		local name = RR_COOKING_ALIASES[v] or v
+		local name = WIT_COOKING_ALIASES[v] or v
 		prefabs[name] = (prefabs[name] or 0) + 1
 		local data = (cooking.ingredients or {})[name]
 		if data ~= nil then
@@ -78,7 +78,7 @@ function SortCookingByAvailable(recipes)
 		local match_count = 0
 		if r.card_def and r.card_def.ingredients then
 			for _, ci in ipairs(r.card_def.ingredients) do
-				local name = RR_COOKING_ALIASES[ci[1]] or ci[1]
+				local name = WIT_COOKING_ALIASES[ci[1]] or ci[1]
 				local has_item = prefabs[name] or 0
 				for _ = 1, ci[2] do
 					if has_item > 0 then
