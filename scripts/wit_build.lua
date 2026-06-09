@@ -92,43 +92,43 @@ if cooking ~= nil then
 					WIT.cook_foods[fname] = frecipe
 				end
 			-- 只处理有 test() 和 card_def 的配方
-				if frecipe.test and frecipe.card_def and frecipe.card_def.ingredients then
+				-- 只处理有 test() 和 card_def 的配方
 					for iname, _ in pairs(cooking.ingredients or {}) do
 					local item_tags = WIT.ingredient_tags[iname]
-					if item_tags then
-						local can_participate = false
-						-- 替代法: 逐一替换每个槽
-						for slot_idx = 1, #frecipe.card_def.ingredients do
-							local names, tags = {}, {}
-							for j, ci in ipairs(frecipe.card_def.ingredients) do
-								local name = ci[1]
-								for _ = 1, ci[2] do
-									if j == slot_idx then
-										name = iname
-									end
-									names[name] = (names[name] or 0) + 1
-									local ing_data = (cooking.ingredients or {})[name]
-									if ing_data then
-										for kk, vv in pairs(ing_data.tags) do
-											tags[kk] = (tags[kk] or 0) + vv
+						if item_tags then
+							local can_participate = false
+							-- 替代法: 逐一替换每个槽
+							for slot_idx = 1, #frecipe.card_def.ingredients do
+								local names, tags = {}, {}
+								for j, ci in ipairs(frecipe.card_def.ingredients) do
+									local name = ci[1]
+									for _ = 1, ci[2] do
+										if j == slot_idx then
+											name = iname
+										end
+										names[name] = (names[name] or 0) + 1
+										local ing_data = (cooking.ingredients or {})[name]
+										if ing_data then
+											for kk, vv in pairs(ing_data.tags) do
+												tags[kk] = (tags[kk] or 0) + vv
+											end
 										end
 									end
 								end
+								if frecipe.test("cookpot", names, tags) then
+									can_participate = true
+									break
+								end
 							end
-							if frecipe.test("cookpot", names, tags) then
-								can_participate = true
-								break
+							if can_participate then
+								if not WIT.cook_by_ingredient[iname] then WIT.cook_by_ingredient[iname] = {} end
+								local exists = false
+								for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
+									if r.name == fname then exists = true; break end
+								end
+								if not exists then table.insert(WIT.cook_by_ingredient[iname], frecipe) end
 							end
 						end
-						if can_participate then
-							if not WIT.cook_by_ingredient[iname] then WIT.cook_by_ingredient[iname] = {} end
-							local exists = false
-							for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
-								if r.name == fname then exists = true; break end
-							end
-							if not exists then table.insert(WIT.cook_by_ingredient[iname], frecipe) end
-						end
-					end
 				end
 			end
 		end
