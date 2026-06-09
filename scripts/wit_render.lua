@@ -8,7 +8,7 @@ function FormatCookCondition(recipe, ingredient_prefab)
 	if recipe.card_def and recipe.card_def.ingredients then
 		local agg = {}
 		for _, ci in ipairs(recipe.card_def.ingredients) do
-			local tags = RR.ingredient_tags[ci[1]]
+			local tags = WIT.ingredient_tags[ci[1]]
 			if tags then
 				for tname, tval in pairs(tags) do
 					agg[tname] = (agg[tname] or 0) + tval * ci[2]

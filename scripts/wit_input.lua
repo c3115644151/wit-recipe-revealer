@@ -5,10 +5,10 @@
 
 function HasData(name, mode)
 	if mode == "SOURCE" then
-		return (RR.by_product[name] and #RR.by_product[name] > 0) or (RR.cook_foods[name] ~= nil)
+		return (WIT.by_product[name] and #WIT.by_product[name] > 0) or (WIT.cook_foods[name] ~= nil)
 	else
-		local has_mat = RR.by_material[name] and #RR.by_material[name] > 0
-		local has_cook = (RR.cook_by_ingredient[name] and #RR.cook_by_ingredient[name] > 0) or RR.ingredient_tags[name] ~= nil
+		local has_mat = WIT.by_material[name] and #WIT.by_material[name] > 0
+		local has_cook = (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0) or WIT.ingredient_tags[name] ~= nil
 		return has_mat or has_cook
 	end
 end
@@ -33,7 +33,7 @@ local function OnPressR()
 		end
 		CreatePopup(name, "SOURCE")
 	end)
-	if not ok then print("[RR] R:", e) end
+	if not ok then print("[WIT] R:", e) end
 end
 
 -- U: 用途查询
@@ -55,7 +55,7 @@ local function OnPressU()
 		end
 		CreatePopup(name, "USE")
 	end)
-	if not ok then print("[RR] U:", e) end
+	if not ok then print("[WIT] U:", e) end
 end
 
 TheInput.onkeydown:AddEventHandler(WIT_KEY_R, OnPressR)

@@ -1,5 +1,5 @@
 -- wit_build: 索引构建
--- 依赖: RR, RR.ingredient_tags (全局)
+-- 依赖: WIT, WIT.ingredient_tags (全局)
 
 -- 为无 card_def 的配方提供硬编码示例组合 (来源: wiki Cookbook 卡 + test()验证)
 local FALLBACK_CARD_DEF = {
@@ -56,12 +56,12 @@ function BuildIndexes()
 	WIT_data_built = true
 	for rname, recipe in pairs(AllRecipes) do
 		local prod = recipe.product or rname
-		RR.by_product[prod] = RR.by_product[prod] or {}
-		table.insert(RR.by_product[prod], recipe)
+		WIT.by_product[prod] = WIT.by_product[prod] or {}
+		table.insert(WIT.by_product[prod], recipe)
 		for _, ing in ipairs(recipe.ingredients or {}) do
 			if type(ing.type) == "string" then
-				RR.by_material[ing.type] = RR.by_material[ing.type] or {}
-				table.insert(RR.by_material[ing.type], recipe)
+				WIT.by_material[ing.type] = WIT.by_material[ing.type] or {}
+				table.insert(WIT.by_material[ing.type], recipe)
 			end
 		end
 	end
@@ -71,11 +71,11 @@ function BuildIndexes()
 		-- 反向索引: 食材→可参与的料理 (用 test() 替代法验证)
 		for _, recipes in pairs(cooking.cookbook_recipes or {}) do
 			for fname, frecipe in pairs(recipes) do
-				RR.cook_foods[fname] = frecipe
+				WIT.cook_foods[fname] = frecipe
 			end
 		end
 		for iname, idata in pairs(cooking.ingredients or {}) do
-			RR.ingredient_tags[iname] = idata.tags
+			WIT.ingredient_tags[iname] = idata.tags
 		end
 
 		-- 遍历所有 cookpot 配方, 对每个食材建立反向索引
@@ -86,13 +86,13 @@ function BuildIndexes()
 				frecipe.card_def = FALLBACK_CARD_DEF[fname]
 			end
 			-- 确保 cook_foods 也收录此配方
-			if not RR.cook_foods[fname] then
-				RR.cook_foods[fname] = frecipe
+			if not WIT.cook_foods[fname] then
+				WIT.cook_foods[fname] = frecipe
 			end
 			-- 只处理有 test() 和 card_def 的配方
 			if frecipe.test and frecipe.card_def and frecipe.card_def.ingredients then
 				for iname, _ in pairs(cooking.ingredients or {}) do
-					local item_tags = RR.ingredient_tags[iname]
+					local item_tags = WIT.ingredient_tags[iname]
 					if item_tags then
 						local can_participate = false
 						-- 替代法: 逐一替换每个槽
@@ -119,12 +119,12 @@ function BuildIndexes()
 							end
 						end
 						if can_participate then
-							if not RR.cook_by_ingredient[iname] then RR.cook_by_ingredient[iname] = {} end
+							if not WIT.cook_by_ingredient[iname] then WIT.cook_by_ingredient[iname] = {} end
 							local exists = false
-							for _, r in ipairs(RR.cook_by_ingredient[iname]) do
+							for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
 								if r.name == fname then exists = true; break end
 							end
-							if not exists then table.insert(RR.cook_by_ingredient[iname], frecipe) end
+							if not exists then table.insert(WIT.cook_by_ingredient[iname], frecipe) end
 						end
 					end
 				end

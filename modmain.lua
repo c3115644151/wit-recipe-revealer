@@ -27,13 +27,13 @@ WIT_KEY_U = GetModConfigData("KEY_U") or 117
 -- ============================
 -- 数据层
 -- ============================
-RR = {}
-RR.by_product = {}
-RR.by_material = {}
-RR.cook_foods = {}
-RR.cook_by_ingredient = {}
-RR.ingredient_tags = {}
-RR.data_built = false
+WIT = {}
+WIT.by_product = {}
+WIT.by_material = {}
+WIT.cook_foods = {}
+WIT.cook_by_ingredient = {}
+WIT.ingredient_tags = {}
+WIT.data_built = false
 
 -- ============================
 -- 弹窗状态 (WIT_ 前缀避免全局污染)

@@ -1,16 +1,16 @@
 -- wit_category: 分类切换 + 配方获取
--- 依赖: 全局 WIT_CUR_CAT, WIT_PAGE, WIT_TAB_BTNS, WIT_NAME, WIT_MODE, RR, SortRecipesByBuildable, SortCookingByAvailable, RenderCards, RenderCardCrafting, RenderCardCooking
+-- 依赖: 全局 WIT_CUR_CAT, WIT_PAGE, WIT_TAB_BTNS, WIT_NAME, WIT_MODE, WIT, SortRecipesByBuildable, SortCookingByAvailable, RenderCards, RenderCardCrafting, RenderCardCooking
 
 function GetCurrentRecipes()
 	if WIT_CUR_CAT == "CRAFTING" then
-		local recipes = (WIT_MODE == "SOURCE") and (RR.by_product[WIT_NAME] or {}) or (RR.by_material[WIT_NAME] or {})
+		local recipes = (WIT_MODE == "SOURCE") and (WIT.by_product[WIT_NAME] or {}) or (WIT.by_material[WIT_NAME] or {})
 		return SortRecipesByBuildable(recipes)
 	elseif WIT_CUR_CAT == "COOKING" then
 		local recipes = {}
 		if WIT_MODE == "SOURCE" then
-			if RR.cook_foods[WIT_NAME] then table.insert(recipes, RR.cook_foods[WIT_NAME]) end
+			if WIT.cook_foods[WIT_NAME] then table.insert(recipes, WIT.cook_foods[WIT_NAME]) end
 		else
-			recipes = RR.cook_by_ingredient[WIT_NAME] or {}
+			recipes = WIT.cook_by_ingredient[WIT_NAME] or {}
 		end
 		table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
 		recipes = SortCookingByAvailable(recipes)

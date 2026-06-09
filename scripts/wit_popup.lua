@@ -6,11 +6,11 @@ function CreatePopup(name, mode)
 
 	local avail_cats = {}
 	if mode == "SOURCE" then
-		if RR.by_product[name] and #RR.by_product[name] > 0 then table.insert(avail_cats, "CRAFTING") end
-		if RR.cook_foods[name] then table.insert(avail_cats, "COOKING") end
+		if WIT.by_product[name] and #WIT.by_product[name] > 0 then table.insert(avail_cats, "CRAFTING") end
+		if WIT.cook_foods[name] then table.insert(avail_cats, "COOKING") end
 	else
-		if RR.by_material[name] and #RR.by_material[name] > 0 then table.insert(avail_cats, "CRAFTING") end
-		if (RR.cook_by_ingredient[name] and #RR.cook_by_ingredient[name] > 0) or RR.ingredient_tags[name] then table.insert(avail_cats, "COOKING") end
+		if WIT.by_material[name] and #WIT.by_material[name] > 0 then table.insert(avail_cats, "CRAFTING") end
+		if (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0) or WIT.ingredient_tags[name] then table.insert(avail_cats, "COOKING") end
 	end
 	if #avail_cats == 0 then return end
 	WIT_AVAIL_CATS = avail_cats
