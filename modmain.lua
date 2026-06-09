@@ -82,4 +82,22 @@ AddPlayerPostInit(function(inst)
 	inst:DoTaskInTime(0, wit_refresh)
 end)
 
--- v1.0 TODO: 合成菜单联动, 暂不启用
+-- 合成菜单开关联动: 弹窗跟随平移, 避免位置冲突
+AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
+	local orig_open = self.Open
+	self.Open = function(s, ...)
+		local ret = orig_open(s, ...)
+		if WIT_POPUP ~= nil then
+			WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(881, 35, 0), 0.25)
+		end
+		return ret
+	end
+	local orig_close = self.Close
+	self.Close = function(s, ...)
+		local ret = orig_close(s, ...)
+		if WIT_POPUP ~= nil then
+			WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(405, 35, 0), 0.25)
+		end
+		return ret
+	end
+end)

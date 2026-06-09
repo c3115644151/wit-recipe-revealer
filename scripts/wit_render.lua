@@ -5,6 +5,7 @@
 -- 烹饪条件推导
 -- ============================
 function FormatCookCondition(recipe, _)
+	-- 从 card_def 示例组合各食材的标签值累加
 	if recipe.card_def and recipe.card_def.ingredients then
 		local agg = {}
 		for _, ci in ipairs(recipe.card_def.ingredients) do
@@ -16,6 +17,11 @@ function FormatCookCondition(recipe, _)
 			end
 		end
 		local parts = {}
+		-- 注意: 此处从示例食材反推标签值, 不是实际 test() 阈值
+		-- 例如 test() 要求 veggie >= 0.5, 但示例用了 2 根胡萝卜(veggie=2)
+		-- 此时显示 "≥ 2" 会让玩家以为需要 2, 但实际上 0.5 就够了
+		-- 但更好的方式需要解析 test() 闭包, 代价太大
+		-- 当前通过 card_def 反推, 不作为精确条件, 仅作参考
 		for tname, tval in pairs(agg) do
 			table.insert(parts, CN(tname) .. " " .. tval)
 		end

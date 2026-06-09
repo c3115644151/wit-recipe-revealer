@@ -4,13 +4,9 @@
 
 local LANG = GetModConfigData("LANGUAGE") or ""
 if LANG == "" or LANG == "auto" then
-	if TheNet then
-		local locale = TheNet:GetLanguageCode()
-		if locale and locale:sub(1,2) == "zh" then
-			LANG = "zh"
-		else
-			LANG = "en"
-		end
+	local lang_id = (Profile and Profile:GetLanguageID()) or LANGUAGE.ENGLISH
+	if lang_id == LANGUAGE.CHINESE_S or lang_id == LANGUAGE.CHINESE_T or lang_id == LANGUAGE.CHINESE_S_RAIL then
+		LANG = "zh"
 	else
 		LANG = "en"
 	end
