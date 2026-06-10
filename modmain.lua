@@ -20,6 +20,10 @@ ImageButton = GLOBAL.ImageButton
 -- 全局常量 (WIT_ 前缀避免全局污染)
 -- ============================
 WIT_COOKING_ALIASES = { cookedsmallmeat = "smallmeat_cooked", cookedmonstermeat = "monstermeat_cooked", cookedmeat = "meat_cooked" }
+-- 烹饪食材名 → 真实 prefab 名（cooking.lua 中遗留的食材名指向不存在的 prefab）
+WIT_INGREDIENT_PREFAB_MAP = {
+    egg = "bird_egg",
+}
 WIT_PAGE_SIZE = 3
 WIT_KEY_R = GetModConfigData("KEY_R") or 114
 WIT_KEY_U = GetModConfigData("KEY_U") or 117
@@ -33,7 +37,7 @@ WIT.by_material = {}
 WIT.cook_foods = {}
 WIT.cook_by_ingredient = {}
 WIT.ingredient_tags = {}
-WIT.data_built = false
+WIT_data_built = false
 
 -- ============================
 -- 弹窗状态 (WIT_ 前缀避免全局污染)
@@ -55,7 +59,6 @@ WIT_OPEN_COOKPOT = nil  -- 当前打开的烹饪锅实体
 -- 加载子模块
 -- ============================
 modimport("scripts/wit_lang")
-modimport("scripts/wit_tags")
 modimport("scripts/wit_build")
 modimport("scripts/wit_helpers")
 modimport("scripts/wit_slot")

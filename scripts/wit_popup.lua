@@ -2,6 +2,8 @@
 -- 依赖: 全局 Widget, Image, Text, TextButton, ImageButton
 
 function CreatePopup(name, mode)
+	-- 刷新烹饪上下文（ClosePopup 会置 nil，每次弹窗重新构建）
+	BuildCookContext()
 	WIT_NAME = name; WIT_MODE = mode; WIT_PAGE = 1
 
 	local avail_cats = {}
@@ -10,7 +12,7 @@ function CreatePopup(name, mode)
 		if WIT.cook_foods[name] then table.insert(avail_cats, "COOKING") end
 	else
 		if WIT.by_material[name] and #WIT.by_material[name] > 0 then table.insert(avail_cats, "CRAFTING") end
-		if (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0) or WIT.ingredient_tags[name] then table.insert(avail_cats, "COOKING") end
+		if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOKING") end
 	end
 	if #avail_cats == 0 then return end
 	WIT_AVAIL_CATS = avail_cats
@@ -91,7 +93,8 @@ function CreatePopup(name, mode)
 	if WIT_PG_PREV then
 		WIT_PG_PREV:SetScale(0.4); WIT_PG_PREV:SetPosition(-40, pg_y); WIT_PG_PREV:SetRotation(90)
 		WIT_PG_PREV:SetOnClick(function()
-			if WIT_PAGE > 1 then WIT_PAGE = WIT_PAGE - 1; SelectCategory(WIT_CUR_CAT, false) end
+			WIT_PAGE = WIT_PAGE - 1
+			SelectCategory(WIT_CUR_CAT, false)
 		end)
 	end
 
@@ -102,7 +105,8 @@ function CreatePopup(name, mode)
 	if WIT_PG_NEXT then
 		WIT_PG_NEXT:SetScale(0.4); WIT_PG_NEXT:SetPosition(40, pg_y); WIT_PG_NEXT:SetRotation(-90)
 		WIT_PG_NEXT:SetOnClick(function()
-			WIT_PAGE = WIT_PAGE + 1; SelectCategory(WIT_CUR_CAT, false)
+			WIT_PAGE = WIT_PAGE + 1
+			SelectCategory(WIT_CUR_CAT, false)
 		end)
 	end
 	SelectCategory(WIT_AVAIL_CATS[1], true)

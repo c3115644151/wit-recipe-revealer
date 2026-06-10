@@ -8,7 +8,7 @@ function HasData(name, mode)
 		return (WIT.by_product[name] and #WIT.by_product[name] > 0) or (WIT.cook_foods[name] ~= nil)
 	else
 		local has_mat = WIT.by_material[name] and #WIT.by_material[name] > 0
-		local has_cook = (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0) or WIT.ingredient_tags[name] ~= nil
+		local has_cook = WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0
 		return has_mat or has_cook
 	end
 end

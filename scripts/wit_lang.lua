@@ -38,6 +38,7 @@ else
 	TXT.PRIORITY = "P"
 	TXT.CLOSE = "✕"
 	TXT.LOADING = "Loading..."
+	TXT.AUTO_COOK_TIP = "Auto Cook"
 
 	TXT.TAG_NAMES = {
 		meat = "Meat", monster = "Monster", veggie = "Vegetable", fruit = "Fruit",
@@ -48,8 +49,15 @@ else
 end
 
 function CN(tag)
+	-- 1. 烹饪标签名（蛋度、肉度等）
 	local t = TXT.TAG_NAMES[tag]
 	if t then return t end
+	-- 2. 具体食材/物品名（洞穴香蕉、火龙果等）
+	if STRINGS and STRINGS.NAMES then
+		local name = STRINGS.NAMES[string.upper(tag)]
+		if name then return name end
+	end
+	-- 3. 纯回退
 	return tag
 end
 

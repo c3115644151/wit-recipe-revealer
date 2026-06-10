@@ -147,16 +147,14 @@ end
 -- ============================
 -- 基于快照的自动烹饪判定
 -- ============================
-function CanAutoCookFromSnapshot(recipe, counts)
-	if recipe == nil then return false end
+function CanAutoCookFromSnapshot(need_map, counts)
+	if need_map == nil or counts == nil then return false end
 	local pot = WIT_OPEN_COOKPOT
 	if pot == nil then return false end
-	if recipe.card_def == nil or recipe.card_def.ingredients == nil then return false end
 	if pot.replica.stewer ~= nil then
 		if pot.replica.stewer:IsCooking() or pot.replica.stewer:IsDone() then return false end
 	end
-	local need = BuildNeedMap(recipe.card_def.ingredients)
-	for prefab, count in pairs(need) do
+	for prefab, count in pairs(need_map) do
 		if (counts[prefab] or 0) < count then return false end
 	end
 	return true
@@ -173,10 +171,27 @@ function ResolveCookingCard(recipe, focus_name, snapshot)
 	slots = SubstituteMissingIngredients(recipe, slots, snapshot)
 	slots = PadSlots(slots, 4)
 
+	-- 焦点食材不在任何槽位 → 该料理不适用此食材，跳过
+	if focus_name then
+		local found = false
+		for _, s in ipairs(slots) do
+			if s == focus_name then found = true; break end
+		end
+		if not found then return nil end
+	end
+
+	-- 基于注入+替换后的实际槽位重建需求映射
+	local need_map = {}
+	for _, s in ipairs(slots) do
+		if s ~= nil then
+			need_map[s] = (need_map[s] or 0) + 1
+		end
+	end
+
 	return {
 		slots = slots,
-		need_map = BuildNeedMap(recipe.card_def.ingredients),
-		can_auto_cook = CanAutoCookFromSnapshot(recipe, snapshot.counts),
+		need_map = need_map,
+		can_auto_cook = CanAutoCookFromSnapshot(need_map, snapshot.counts),
 	}
 end
 

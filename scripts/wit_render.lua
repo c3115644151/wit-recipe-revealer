@@ -4,6 +4,25 @@
 -- ============================
 -- 烹饪条件推导
 -- ============================
+
+-- 格式化条件数值：去除非必要的 ".0"（≥2.0 → ≥2，≥0.5 保留）
+-- "+"/"×" 统一改为 "="（固定需求，如 `+1` → `=1`，`×2` → `=2`）
+local function FormatCondValue(v)
+	if v == nil then return "" end
+	local prefix = v:match("^([^%d.]+)")
+	local num_str = v:match("([%d.]+)$")
+	if prefix then
+		prefix = prefix:gsub("^[+×]$", "=")
+	end
+	if num_str then
+		local n = tonumber(num_str)
+		if n ~= nil and n == math.floor(n) then
+			return (prefix or "") .. tostring(math.floor(n))
+		end
+	end
+	return v
+end
+
 function FormatCookCondition(recipe, _)
 	-- 从 wiki 提取的精确标签条件数据
 	local CONDITIONS = {
@@ -95,7 +114,9 @@ function FormatCookCondition(recipe, _)
 	if conds then
 		local parts = {}
 		for _, c in ipairs(conds) do
-			table.insert(parts, CN(c[1]) .. " " .. c[2])
+			if c[1] ~= nil then
+				table.insert(parts, CN(c[1]) .. " " .. FormatCondValue(c[2]))
+			end
 		end
 		return parts
 	end
@@ -203,8 +224,8 @@ function RenderCards(recipes, card_h, card_spacing, render_card_fn)
 
 	local total = #recipes
 	local pages = math.max(1, math.ceil(total / WIT_PAGE_SIZE))
-	if WIT_PAGE > pages then WIT_PAGE = pages end
-	if WIT_PAGE < 1 then WIT_PAGE = 1 end
+	if WIT_PAGE > pages then WIT_PAGE = 1 end
+	if WIT_PAGE < 1 then WIT_PAGE = pages end
 
 	if WIT_PG_TEXT then WIT_PG_TEXT:SetString(WIT_PAGE .. " / " .. pages) end
 

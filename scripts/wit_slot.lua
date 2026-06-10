@@ -7,12 +7,18 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
 	icon_size = icon_size or 54
 	if show_count == nil then show_count = true end
 
+	-- 烹饪系统遗留名 → 真实 prefab 名（如 egg → bird_egg）
+	local disp_prefab = prefab
+	if prefab and WIT_INGREDIENT_PREFAB_MAP then
+		disp_prefab = WIT_INGREDIENT_PREFAB_MAP[prefab] or prefab
+	end
+
 	local has_enough = true
 	local on_hand = 0
 	if need_amount ~= nil and ThePlayer ~= nil and ThePlayer.replica ~= nil then
 		local inv = ThePlayer.replica.inventory
 		if inv ~= nil then
-			local ok, cnt = inv:Has(prefab, need_amount, true)
+			local ok, cnt = inv:Has(disp_prefab, need_amount, true)
 			has_enough = ok
 			on_hand = cnt or 0
 		end
@@ -26,13 +32,13 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
 	slot:SetPosition(x, y)
 	if highlight then slot.image:SetTint(1.2, 1.0, 0.6, 1) end
 
-	if prefab then
-		local dispname = (STRINGS.NAMES[string.upper(prefab)] or prefab)
+	if disp_prefab then
+		local dispname = STRINGS.NAMES[string.upper(disp_prefab)] or CN(disp_prefab) or disp_prefab
 		slot:SetTooltip(dispname)
 	end
 
-	if prefab then
-		local img_name = prefab .. ".tex"
+	if disp_prefab then
+		local img_name = disp_prefab .. ".tex"
 		local atlas = GetInventoryItemAtlas(img_name)
 		if atlas then
 			local icon = slot.image:AddChild(Image(atlas, img_name))
@@ -57,20 +63,20 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
 		end
 	end
 
-	if prefab ~= nil and ThePlayer ~= nil then
+	if disp_prefab ~= nil and ThePlayer ~= nil then
 		slot:SetOnClick(function()
 			BuildIndexes()
-			if not HasData(prefab, "SOURCE") then return end
+			if not HasData(disp_prefab, "SOURCE") then return end
 			ClosePopup()
-			CreatePopup(prefab, "SOURCE")
+			CreatePopup(disp_prefab, "SOURCE")
 		end)
 		local orig_oc = slot.OnControl
 		slot.OnControl = function(btn, control, down)
 			if down and control == CONTROL_SECONDARY then
 				BuildIndexes()
-				if not HasData(prefab, "USE") then return true end
+				if not HasData(disp_prefab, "USE") then return true end
 				ClosePopup()
-				CreatePopup(prefab, "USE")
+				CreatePopup(disp_prefab, "USE")
 				return true
 			end
 			return orig_oc(btn, control, down)

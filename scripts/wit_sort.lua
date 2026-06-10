@@ -23,7 +23,6 @@ function SortRecipesByBuildable(recipes)
 		end
 	end
 	-- 组内按背包材料匹配数排序
-	local cooking = GLOBAL.require("cooking")
 	local bp_items = GetPlayerIngredientList() or {}
 	local function match_count(r)
 		if r and r.ingredients then
