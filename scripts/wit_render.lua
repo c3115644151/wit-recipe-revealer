@@ -111,6 +111,9 @@ function FormatCookCondition(recipe, _)
 	}
 
 	local conds = CONDITIONS[recipe.name]
+	if not conds and WIT_PROBED_CONDITIONS then
+		conds = WIT_PROBED_CONDITIONS[recipe.name]
+	end
 	if conds then
 		local parts = {}
 		for _, c in ipairs(conds) do

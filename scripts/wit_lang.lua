@@ -29,6 +29,8 @@ if LANG == "zh" then
 		egg = "蛋度", fish = "鱼度", sweetener = "甜味剂度", fat = "油脂度",
 		dairy = "乳制品度", inedible = "不可食用度", seed = "种子度", magic = "魔法度",
 		decoration = "装饰度", precook = "预处理度", dried = "干货度", frozen = "冰度",
+		-- mod 自定义 tag（永不妥协等）
+		insectoid = "虫类度", foliage = "叶绿度", rice = "米粮度",
 	}
 
 else
@@ -45,6 +47,8 @@ else
 		egg = "Egg", fish = "Fish", sweetener = "Sweetener", fat = "Fat",
 		dairy = "Dairy", inedible = "Inedible", seed = "Seed", magic = "Magic",
 		decoration = "Decoration", precook = "Precooked", dried = "Dried", frozen = "Frozen",
+		-- mod custom tags
+		insectoid = "Insectoid", foliage = "Foliage", rice = "Rice",
 	}
 end
 
