@@ -161,139 +161,36 @@ function RenderCardCooking(r, card_y)
 		end
 	end
 
-	-- 构建 4 槽显示列表, 确保 WIT_NAME 出现在其中
-	local ings_list = {}
-	if r.card_def and r.card_def.ingredients then
-		-- 展开 card_def 为平坦 list
-		for _, ci in ipairs(r.card_def.ingredients) do
-			for _ = 1, ci[2] do
-				table.insert(ings_list, ci[1])
-			end
-		end
-		-- 如果 WIT_NAME 不在列表中, 找一个可替换的槽位替换进去
-		-- 替换条件: 替换后 test() 仍然 pass
-		local found_gname = false
-		for _, v in ipairs(ings_list) do
-			if v == WIT_NAME then found_gname = true; break end
-		end
-		if not found_gname and r.test then
-			local cooking = GLOBAL.require("cooking")
-			local best_slot = nil
-			for try_slot = #ings_list, 1, -1 do
-				-- 尝试替换此槽为 WIT_NAME, 跑 test()
-				local sim_names, sim_tags = {}, {}
-				for ii, ing in ipairs(ings_list) do
-					local name = (ii == try_slot) and WIT_NAME or ing
-					sim_names[name] = (sim_names[name] or 0) + 1
-					local ing_data = (cooking.ingredients or {})[name]
-					if ing_data then
-						for kk, vv in pairs(ing_data.tags) do
-							sim_tags[kk] = (sim_tags[kk] or 0) + vv
-						end
-					end
-				end
-				if r.test("cookpot", sim_names, sim_tags) then
-					best_slot = try_slot
-					break
-				end
-			end
-			if best_slot then
-				ings_list[best_slot] = WIT_NAME
-			end
-		end
-		-- 第二步: 对剩余缺失槽位, 尝试用背包中的同标签食材替换
-		-- 替换条件: 替换后 test() 仍然 pass, 且替换食材标签值 >= 被替换食材
-		if r.test then
-			local cooking = GLOBAL.require("cooking")
-			local bp_items = GetPlayerIngredientList() or {}
-			local bp_avail = {}
-			for _, v in ipairs(bp_items) do
-				local name = WIT_COOKING_ALIASES[v] or v
-				bp_avail[name] = (bp_avail[name] or 0) + 1
-			end
-			-- 扣除已在 ings_list 中且背包有的食材
-			for _, ing in ipairs(ings_list) do
-				if bp_avail[ing] and bp_avail[ing] > 0 then
-					bp_avail[ing] = bp_avail[ing] - 1
-				end
-			end
-			-- 逐槽检查: 该槽食材背包缺失 → 尝试替换
-			for slot_i = 1, #ings_list do
-				local cur = ings_list[slot_i]
-				if cur ~= nil and cur ~= WIT_NAME then
-					-- 检查背包是否已有足够此食材
-					local bp_check = {}
-					for _, v in ipairs(bp_items) do
-						local name = WIT_COOKING_ALIASES[v] or v
-						bp_check[name] = (bp_check[name] or 0) + 1
-					end
-					local need_count = 0
-					for _, v in ipairs(ings_list) do
-						if v == cur then need_count = need_count + 1 end
-					end
-					if (bp_check[cur] or 0) < need_count then
-						-- 背包缺此食材, 尝试从背包找替代
-						local best_sub = nil
-						for bp_name, bp_count in pairs(bp_avail) do
-							if bp_count > 0 and bp_name ~= cur then
-								-- 只用 test() 验证替换安全性
-								local sim_names, sim_tags = {}, {}
-								for ii, ing in ipairs(ings_list) do
-									local name = (ii == slot_i) and bp_name or ing
-									sim_names[name] = (sim_names[name] or 0) + 1
-									local ing_data = (cooking.ingredients or {})[name]
-									if ing_data then
-										for kk, vv in pairs(ing_data.tags) do
-											sim_tags[kk] = (sim_tags[kk] or 0) + vv
-										end
-									end
-								end
-								if r.test("cookpot", sim_names, sim_tags) then
-									best_sub = bp_name
-									break
-								end
-							end
-						end
-						if best_sub then
-							ings_list[slot_i] = best_sub
-							bp_avail[best_sub] = bp_avail[best_sub] - 1
-						end
-					end
-				end
-			end
-		end
+	-- 从求解器获取已求解的展示视图
+	local view = GetResolvedCookingCard(r, WIT_NAME)
+	if not view then
+		-- 降级: 无求解器上下文时直接展开原始食材
+		local raw = FlattenIngredients(r.card_def and r.card_def.ingredients)
+		view = { slots = PadSlots(raw, 4), need_map = BuildNeedMap(r.card_def and r.card_def.ingredients), can_auto_cook = false }
 	end
-	if #ings_list > 0 then
-		local need_map = {}
-		for _, ci in ipairs(r.card_def and r.card_def.ingredients or {}) do
-			need_map[ci[1]] = (need_map[ci[1]] or 0) + ci[2]
-		end
-		while #ings_list < 4 do table.insert(ings_list, nil) end
 
-		local slot_start_x = -140
-		for ii = 1, 4 do
-			local hl = (ings_list[ii] == WIT_NAME)
-			local need_amt = ings_list[ii] and need_map[ings_list[ii]] or nil
-			MakeSlot(WIT_CONTENT, ings_list[ii], slot_start_x + (ii - 1) * 58, card_y - 8, need_amt, hl, nil, nil, nil, false)
-		end
-		MakeArrow(WIT_CONTENT, slot_start_x + 4 * 58 - 10, card_y - 8)
-		MakeSlot(WIT_CONTENT, r.name, slot_start_x + 4 * 58 + 32, card_y - 8, nil, false, nil, nil, nil, false)
+	local slot_start_x = -140
+	for ii = 1, 4 do
+		local hl = (view.slots[ii] == WIT_NAME)
+		local need_amt = view.slots[ii] and view.need_map[view.slots[ii]] or nil
+		MakeSlot(WIT_CONTENT, view.slots[ii], slot_start_x + (ii - 1) * 58, card_y - 8, need_amt, hl, nil, nil, nil, false)
+	end
+	MakeArrow(WIT_CONTENT, slot_start_x + 4 * 58 - 10, card_y - 8)
+	MakeSlot(WIT_CONTENT, r.name, slot_start_x + 4 * 58 + 32, card_y - 8, nil, false, nil, nil, nil, false)
 
-		local can_cook = CanAutoCook(r)
-		local craft_btn = WIT_CONTENT:AddChild(ImageButton("images/crafting_menu.xml", "ingredient_craft.tex", "ingredient_craft.tex"))
-		if craft_btn then
-			craft_btn:SetPosition(slot_start_x + 4 * 58 + 32 + 32, card_y - 8 - 32)
-			craft_btn:SetScale(0.35)
-			if can_cook then
-				craft_btn.image:SetTint(1, 1, 1, 1)
-			else
-				craft_btn.image:SetTint(0.5, 0.5, 0.5, 1)
-			end
-			craft_btn:SetOnClick(function()
-				if not CanAutoCook(r) then return end
-				AutoFillCookPot(r)
-			end)
+	local craft_btn = WIT_CONTENT:AddChild(ImageButton("images/crafting_menu.xml", "ingredient_craft.tex", "ingredient_craft.tex"))
+	if craft_btn then
+		craft_btn:SetPosition(slot_start_x + 4 * 58 + 32 + 32, card_y - 8 - 32)
+		craft_btn:SetScale(0.35)
+		if view.can_auto_cook then
+			craft_btn.image:SetTint(1, 1, 1, 1)
+		else
+			craft_btn.image:SetTint(0.5, 0.5, 0.5, 1)
 		end
+		craft_btn:SetOnClick(function()
+			if not CanAutoCook(r) then return end
+			AutoFillCookPot(r)
+		end)
 	end
 end
 

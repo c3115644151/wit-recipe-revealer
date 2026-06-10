@@ -61,6 +61,7 @@ modimport("scripts/wit_helpers")
 modimport("scripts/wit_slot")
 modimport("scripts/wit_sort")
 modimport("scripts/wit_render")
+modimport("scripts/wit_cook_card_resolver")
 modimport("scripts/wit_category")
 modimport("scripts/wit_popup")
 modimport("scripts/wit_input")
@@ -71,6 +72,7 @@ modimport("scripts/wit_input")
 AddPlayerPostInit(function(inst)
 	local function wit_refresh()
 		WIT_OPEN_COOKPOT = GetOpenCookPot()
+		BuildCookContext()  -- 构建库存快照，供烹饪卡片求解器消费
 		if WIT_POPUP ~= nil and WIT_CONTENT ~= nil and WIT_CUR_CAT ~= nil then
 			SelectCategory(WIT_CUR_CAT, false)
 		end

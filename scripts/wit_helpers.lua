@@ -12,7 +12,7 @@ function ClosePopup()
 	WIT_NAME = nil; WIT_MODE = nil; WIT_CUR_CAT = nil; WIT_PAGE = 1
 	WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
 	WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
-	WIT_OPEN_COOKPOT = nil
+	WIT_OPEN_COOKPOT = nil; WIT_COOK_CONTEXT = nil
 end
 
 -- ============================

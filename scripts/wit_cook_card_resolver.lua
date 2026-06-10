@@ -1,0 +1,203 @@
+-- wit_cook_card_resolver: 烹饪卡片求解器
+-- 将候选食材推导、背包扫描、test() 验证从渲染层分离
+-- 依赖: 全局 WIT_NAME, WIT_COOKING_ALIASES, WIT_OPEN_COOKPOT
+
+-- ============================
+-- 库存快照：单次扫描产出 {list, counts, tags}
+-- ============================
+function CollectIngredientSnapshot()
+	local bp_items = GetPlayerIngredientList() or {}
+	local snapshot = { list = bp_items, counts = {}, tags = {} }
+	local cooking = GLOBAL.require("cooking")
+	for _, v in ipairs(bp_items) do
+		local name = WIT_COOKING_ALIASES[v] or v
+		snapshot.counts[name] = (snapshot.counts[name] or 0) + 1
+		local ing_data = (cooking.ingredients or {})[name]
+		if ing_data then
+			for kk, vv in pairs(ing_data.tags) do
+				snapshot.tags[kk] = (snapshot.tags[kk] or 0) + vv
+			end
+		end
+	end
+	return snapshot
+end
+
+-- ============================
+-- 基础工具函数
+-- ============================
+function FlattenIngredients(ingredients)
+	local list = {}
+	if not ingredients then return list end
+	for _, ci in ipairs(ingredients) do
+		for _ = 1, ci[2] do
+			table.insert(list, ci[1])
+		end
+	end
+	return list
+end
+
+function BuildNeedMap(ingredients)
+	local map = {}
+	if not ingredients then return map end
+	for _, ci in ipairs(ingredients) do
+		map[ci[1]] = (map[ci[1]] or 0) + ci[2]
+	end
+	return map
+end
+
+function PadSlots(slots, count)
+	while #slots < count do
+		table.insert(slots, nil)
+	end
+	return slots
+end
+
+-- ============================
+-- 模拟 test() 输入构建
+-- ============================
+function BuildSimInput(slot_list, slot_override)
+	local sim_names, sim_tags = {}, {}
+	local cooking = GLOBAL.require("cooking")
+	for ii, ing in ipairs(slot_list) do
+		local name = slot_override[ii] or ing
+		sim_names[name] = (sim_names[name] or 0) + 1
+		local ing_data = (cooking.ingredients or {})[name]
+		if ing_data then
+			for kk, vv in pairs(ing_data.tags) do
+				sim_tags[kk] = (sim_tags[kk] or 0) + vv
+			end
+		end
+	end
+	return sim_names, sim_tags
+end
+
+-- ============================
+-- 步骤 1：将 WIT_NAME 注入槽位
+-- ============================
+function TryInjectFocusIngredient(recipe, slots, focus_name)
+	local found = false
+	for _, v in ipairs(slots) do
+		if v == focus_name then found = true; break end
+	end
+	if found or not recipe.test then return slots end
+
+	for try_slot = #slots, 1, -1 do
+		local override = {}
+		for ii = 1, #slots do
+			override[ii] = (ii == try_slot) and focus_name or slots[ii]
+		end
+		local sim_names, sim_tags = BuildSimInput(slots, override)
+		if recipe.test("cookpot", sim_names, sim_tags) then
+			slots[try_slot] = focus_name
+			break
+		end
+	end
+	return slots
+end
+
+-- ============================
+-- 步骤 2：对背包缺失食材做替换
+-- ============================
+function SubstituteMissingIngredients(recipe, slots, snapshot)
+	if not recipe.test or not snapshot then return slots end
+
+	-- 从快照构建可用食材池，扣除已在 slots 中匹配的
+	local bp_avail = {}
+	for name, count in pairs(snapshot.counts) do
+		bp_avail[name] = count
+	end
+	for _, ing in ipairs(slots) do
+		if bp_avail[ing] and bp_avail[ing] > 0 then
+			bp_avail[ing] = bp_avail[ing] - 1
+		end
+	end
+
+	for slot_i = 1, #slots do
+		local cur = slots[slot_i]
+		if cur ~= nil and cur ~= WIT_NAME then
+			local need_count = 0
+			for _, v in ipairs(slots) do
+				if v == cur then need_count = need_count + 1 end
+			end
+			if (snapshot.counts[cur] or 0) < need_count then
+				local best_sub = nil
+				for bp_name, bp_count in pairs(bp_avail) do
+					if bp_count > 0 and bp_name ~= cur then
+						local override = {}
+						for ii = 1, #slots do
+							override[ii] = (ii == slot_i) and bp_name or slots[ii]
+						end
+						local sim_names, sim_tags = BuildSimInput(slots, override)
+						if recipe.test("cookpot", sim_names, sim_tags) then
+							best_sub = bp_name
+							break
+						end
+					end
+				end
+				if best_sub then
+					slots[slot_i] = best_sub
+					bp_avail[best_sub] = bp_avail[best_sub] - 1
+				end
+			end
+		end
+	end
+	return slots
+end
+
+-- ============================
+-- 基于快照的自动烹饪判定
+-- ============================
+function CanAutoCookFromSnapshot(recipe, counts)
+	if recipe == nil then return false end
+	local pot = WIT_OPEN_COOKPOT
+	if pot == nil then return false end
+	if recipe.card_def == nil or recipe.card_def.ingredients == nil then return false end
+	if pot.replica.stewer ~= nil then
+		if pot.replica.stewer:IsCooking() or pot.replica.stewer:IsDone() then return false end
+	end
+	local need = BuildNeedMap(recipe.card_def.ingredients)
+	for prefab, count in pairs(need) do
+		if (counts[prefab] or 0) < count then return false end
+	end
+	return true
+end
+
+-- ============================
+-- 核心求解器：配方 + 快照 → 展示视图
+-- ============================
+function ResolveCookingCard(recipe, focus_name, snapshot)
+	if not recipe.card_def or not recipe.card_def.ingredients then return nil end
+
+	local slots = FlattenIngredients(recipe.card_def.ingredients)
+	slots = TryInjectFocusIngredient(recipe, slots, focus_name)
+	slots = SubstituteMissingIngredients(recipe, slots, snapshot)
+	slots = PadSlots(slots, 4)
+
+	return {
+		slots = slots,
+		need_map = BuildNeedMap(recipe.card_def.ingredients),
+		can_auto_cook = CanAutoCookFromSnapshot(recipe, snapshot.counts),
+	}
+end
+
+-- ============================
+-- 上下文管理：快照构建 + 结果缓存
+-- ============================
+function BuildCookContext()
+	WIT_COOK_REV = (WIT_COOK_REV or 0) + 1
+	WIT_COOK_CONTEXT = {
+		revision = WIT_COOK_REV,
+		snapshot = CollectIngredientSnapshot(),
+		resolved = {},
+	}
+end
+
+function GetResolvedCookingCard(recipe, focus_name)
+	local ctx = WIT_COOK_CONTEXT
+	if ctx == nil then return nil end
+	local key = recipe.name .. "|" .. focus_name
+	if ctx.resolved[key] == nil then
+		ctx.resolved[key] = ResolveCookingCard(recipe, focus_name, ctx.snapshot)
+	end
+	return ctx.resolved[key]
+end
