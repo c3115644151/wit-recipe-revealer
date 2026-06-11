@@ -1,5 +1,5 @@
 -- [JEI] What Is This - modmain
--- 入口文件: 注册事件 + 加载子模块
+-- 入口文件: 全局常量 + 事件注册 + 模块加载
 
 GLOBAL.setmetatable(env, { __index = function(_, k) return GLOBAL.rawget(GLOBAL, k) end })
 
@@ -20,16 +20,13 @@ ImageButton = GLOBAL.ImageButton
 -- 全局常量 (WIT_ 前缀避免全局污染)
 -- ============================
 WIT_COOKING_ALIASES = { cookedsmallmeat = "smallmeat_cooked", cookedmonstermeat = "monstermeat_cooked", cookedmeat = "meat_cooked" }
--- 烹饪食材名 → 真实 prefab 名（cooking.lua 中遗留的食材名指向不存在的 prefab）
-WIT_INGREDIENT_PREFAB_MAP = {
-    egg = "bird_egg",
-}
+WIT_INGREDIENT_PREFAB_MAP = { egg = "bird_egg" }
 WIT_PAGE_SIZE = 3
 WIT_KEY_R = GetModConfigData("KEY_R") or 114
 WIT_KEY_U = GetModConfigData("KEY_U") or 117
 
 -- ============================
--- 数据层
+-- 数据层状态
 -- ============================
 WIT = {}
 WIT.by_product = {}
@@ -40,12 +37,12 @@ WIT.ingredient_tags = {}
 WIT_data_built = false
 
 -- ============================
--- 弹窗状态 (WIT_ 前缀避免全局污染)
+-- UI 层状态
 -- ============================
 WIT_POPUP = nil
-WIT_NAME = nil       -- 当前查询的物品 prefab
-WIT_MODE = nil       -- "SOURCE" 或 "USE"
-WIT_CUR_CAT = nil    -- 当前选中的分类
+WIT_NAME = nil
+WIT_MODE = nil
+WIT_CUR_CAT = nil
 WIT_PAGE = 1
 WIT_AVAIL_CATS = {}
 WIT_CONTENT = nil
@@ -53,56 +50,64 @@ WIT_TAB_BTNS = {}
 WIT_PG_TEXT = nil
 WIT_PG_PREV = nil
 WIT_PG_NEXT = nil
-WIT_OPEN_COOKPOT = nil  -- 当前打开的烹饪锅实体
+WIT_OPEN_COOKPOT = nil
 
 -- ============================
--- 加载子模块
+-- 纯客户端实体拦截
 -- ============================
-modimport("scripts/wit_lang")
-modimport("scripts/wit_build")
-modimport("scripts/wit_helpers")
-modimport("scripts/wit_slot")
-modimport("scripts/wit_sort")
-modimport("scripts/wit_render")
-modimport("scripts/wit_cook_card_resolver")
-modimport("scripts/wit_category")
-modimport("scripts/wit_popup")
-modimport("scripts/wit_input")
-
--- ============================
--- 初始化
--- ============================
-AddPlayerPostInit(function(inst)
-	local function wit_refresh()
-		WIT_OPEN_COOKPOT = GetOpenCookPot()
-		BuildCookContext()  -- 构建库存快照，供烹饪卡片求解器消费
-		if WIT_POPUP ~= nil and WIT_CONTENT ~= nil and WIT_CUR_CAT ~= nil then
-			SelectCategory(WIT_CUR_CAT, false)
-		end
-	end
-	inst:ListenForEvent("refreshcrafting", wit_refresh)
-	inst:ListenForEvent("refreshinventory", wit_refresh)
-	inst:ListenForEvent("opencontainer", wit_refresh)
-	inst:ListenForEvent("closecontainer", wit_refresh)
-	inst:DoTaskInTime(0, wit_refresh)
+WIT_SPAWNING_ITEM = false
+AddGlobalClassPostConstruct("entityscript", "EntityScript", function(self)
+    local oldRegisterComponentActions = self.RegisterComponentActions
+    if oldRegisterComponentActions ~= nil then
+        self.RegisterComponentActions = function(self, name)
+            if not WIT_SPAWNING_ITEM then
+                return oldRegisterComponentActions(self, name)
+            end
+        end
+    end
 end)
 
--- 合成菜单开关联动: 弹窗跟随平移, 避免位置冲突
+-- ============================
+-- 加载子模块 (顺序: 国际化 → 数据层 → 表现层)
+-- ============================
+modimport("scripts/wit_lang")
+modimport("scripts/wit_core")
+modimport("scripts/wit_ui")
+
+-- ============================
+-- 初始化事件
+-- ============================
+AddPlayerPostInit(function(inst)
+    local function wit_refresh()
+        WIT_OPEN_COOKPOT = GetOpenCookPot()
+        BuildCookContext()
+        if WIT_POPUP ~= nil and WIT_CONTENT ~= nil and WIT_CUR_CAT ~= nil then
+            SelectCategory(WIT_CUR_CAT, false)
+        end
+    end
+    inst:ListenForEvent("refreshcrafting", wit_refresh)
+    inst:ListenForEvent("refreshinventory", wit_refresh)
+    inst:ListenForEvent("opencontainer", wit_refresh)
+    inst:ListenForEvent("closecontainer", wit_refresh)
+    inst:DoTaskInTime(0, wit_refresh)
+end)
+
+-- 合成菜单联动
 AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
-	local orig_open = self.Open
-	self.Open = function(s, ...)
-		local ret = orig_open(s, ...)
-		if WIT_POPUP ~= nil then
-			WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(881, 35, 0), 0.25)
-		end
-		return ret
-	end
-	local orig_close = self.Close
-	self.Close = function(s, ...)
-		local ret = orig_close(s, ...)
-		if WIT_POPUP ~= nil then
-			WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(405, 35, 0), 0.25)
-		end
-		return ret
-	end
+    local orig_open = self.Open
+    self.Open = function(s, ...)
+        local ret = orig_open(s, ...)
+        if WIT_POPUP ~= nil then
+            WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(881, 35, 0), 0.25)
+        end
+        return ret
+    end
+    local orig_close = self.Close
+    self.Close = function(s, ...)
+        local ret = orig_close(s, ...)
+        if WIT_POPUP ~= nil then
+            WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(405, 35, 0), 0.25)
+        end
+        return ret
+    end
 end)
