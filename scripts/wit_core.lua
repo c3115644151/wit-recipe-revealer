@@ -11,6 +11,9 @@
 -- 不包含任何 UI 渲染代码。所有函数在此文件中定义为全局，
 -- 上层 wit_ui.lua 或 modmain.lua 直接调用。
 
+WIT_COOKING_ALIASES = { cookedsmallmeat = "smallmeat_cooked", cookedmonstermeat = "monstermeat_cooked", cookedmeat = "meat_cooked" }
+WIT_INGREDIENT_PREFAB_MAP = { egg = "bird_egg" }
+
 -- ============================
 -- 统一库存遍历 (消除 3 份重复)
 -- ============================
@@ -240,6 +243,78 @@ function GenerateCardDef(recipe, cooking)
     return nil
 end
 
+-- ============================
+-- 按键配置：持久化重绑定
+-- ============================
+
+WIT_KEYS = {
+    R = GetModConfigData("KEY_R") or 114,
+    U = GetModConfigData("KEY_U") or 117,
+}
+WIT_REBINDING = nil  -- { action = "R" } when waiting for keypress
+
+local function _SavePath() return "WIT_keybind" end
+
+function LoadKeyOverrides()
+    local ok, str = pcall(TheSim.GetPersistentString, TheSim, _SavePath())
+    if not ok or str == nil or str == "" then return end
+    local ok2, data = pcall(json.decode, str)
+    if ok2 and type(data) == "table" then
+        if data.R then WIT_KEYS.R = data.R end
+        if data.U then WIT_KEYS.U = data.U end
+    end
+end
+
+function SaveKeyOverrides()
+    pcall(TheSim.SetPersistentString, TheSim, _SavePath(), json.encode(WIT_KEYS))
+end
+
+function StartRebinding(action, on_complete)
+    WIT_REBINDING = { action = action, on_complete = on_complete }
+end
+
+function CompleteRebinding(keycode)
+    if not WIT_REBINDING then return end
+    local action = WIT_REBINDING.action
+    local on_complete = WIT_REBINDING.on_complete
+    WIT_REBINDING = nil
+    if keycode == 27 then  -- ESC 取消
+        if on_complete then on_complete(nil) end
+        return
+    end
+    WIT_KEYS[action] = keycode
+    SaveKeyOverrides()
+    if on_complete then on_complete(keycode) end
+end
+
+-- 完整按键名称映射表（Free key binding 用）
+WIT_KEY_NAMES = {}
+local function _InitKeyNames()
+    local t = {}
+    for i = 97, 122 do t[i] = string.char(i - 32) end  -- a-z → A-Z
+    for i = 48, 57 do t[i] = string.char(i) end           -- 0-9
+    t[32] = "SPACE"; t[13] = "ENTER"; t[27] = "ESC"; t[9] = "TAB"
+    t[8] = "BACK"; t[127] = "DEL"; t[277] = "INS"
+    t[273] = "↑"; t[274] = "↓"; t[275] = "←"; t[276] = "→"
+    t[268] = "HOME"; t[269] = "END"; t[280] = "PGUP"; t[281] = "PGDN"
+    for i = 282, 293 do t[i] = "F" .. (i - 281) end  -- F1-F12
+    t[304] = "LSHIFT"; t[303] = "RSHIFT"; t[306] = "LCTRL"; t[305] = "RCTRL"
+    t[308] = "LALT"; t[307] = "RALT"
+    t[44] = ","; t[46] = "."; t[47] = "/"; t[59] = ";"; t[39] = "'"
+    t[91] = "["; t[93] = "]"; t[92] = "\\"; t[45] = "-"; t[61] = "="
+    t[192] = "~"; t[107] = "KP+"; t[106] = "KP*"; t[111] = "KP/"
+    t[109] = "KP-"; t[110] = "KP."; t[269] = "KP0"
+    WIT_KEY_NAMES = t
+end
+_InitKeyNames()
+
+function KeyName(code)
+    return code and (WIT_KEY_NAMES[code] or string.char(code) or "?") or "?"
+end
+
+-- 加载持久化覆盖
+LoadKeyOverrides()
+
 function BuildIndexes()
     if WIT_data_built then return end
     WIT_data_built = true
@@ -396,7 +471,7 @@ local HARDCODED_CONDITIONS = {
 
 local function FormatCondValue(v)
     if v == nil then return "" end
-    if v == "==" then return "＝０" end
+    if v == "==" then return WIT_TXT.FMT_COND_ZERO end
     local prefix = v:match("^([^%d.]+)")
     local num_str = v:match("([%d.]+)$")
     if num_str then
@@ -431,12 +506,12 @@ WIT_ITEM_DB = WIT_ITEM_DB or {}
 
 -- 食物类型 → 可食用角色的映射（非玩家可食用的特殊类型）
 local _EATER_HINT_MAP = {
-    ROUGHAGE = "皮弗娄牛",
+    ROUGHAGE = WIT_TXT.EATER_BEEFALO,
     GEARS = "WX-78",
     WOOD = "",
     ELEMENTAL = "",
-    HORRIBLE = "暗影生物",
-    BURNT = "暗影生物",
+    HORRIBLE = WIT_TXT.EATER_SHADOW,
+    BURNT = WIT_TXT.EATER_SHADOW,
 }
 
 local function CollectItemData(inst)
@@ -572,7 +647,25 @@ local function CollectItemData(inst)
             table.insert(data.tags, tag)
         end
     end
+    -- Determine which mod added this prefab (if any)
+    data.mod_source = GetPrefabModName(inst.prefab)
     return data
+end
+
+-- ============================
+-- Prefab 来源 Mod 查询
+-- ============================
+
+-- Iterate all enabled mods to find which one registered this prefab
+function GetPrefabModName(prefab_name)
+    if ModManager == nil or ModManager.enabledmods == nil then return nil end
+    for _, modname in ipairs(ModManager.enabledmods) do
+        local mod = ModManager:GetMod(modname)
+        if mod and mod.Prefabs and mod.Prefabs[prefab_name] then
+            return KnownModIndex and KnownModIndex:GetModFancyName(modname) or modname
+        end
+    end
+    return nil
 end
 
 function GetItemInfo(prefab)

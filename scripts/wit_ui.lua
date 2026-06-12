@@ -21,6 +21,8 @@
 -- 通用辅助函数
 -- ============================
 
+WIT_PAGE_SIZE = 3
+
 function GetHoverItem()
     local hud_ent = TheInput:GetHUDEntityUnderMouse()
     if hud_ent == nil then return nil end
@@ -33,11 +35,25 @@ function ClosePopup()
     WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
     WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
     WIT_OPEN_COOKPOT = nil; WIT_COOK_CONTEXT = nil
+    WIT_REBINDING = nil
 end
 
 -- ============================
 -- 排序 + 跳转 (from wit_sort.lua)
 -- ============================
+
+-- 查找配方所属的分类标签
+local function _FindRecipeFilter(recipe_name)
+    if not CRAFTING_FILTERS then return nil end
+    for fname, filter in pairs(CRAFTING_FILTERS) do
+        if type(filter) == "table" and type(filter.recipes) == "table" then
+            for _, rname in ipairs(filter.recipes) do
+                if rname == recipe_name then return fname end
+            end
+        end
+    end
+    return nil
+end
 
 function GetRecipeBuildState(recipe_name)
     if ThePlayer == nil or ThePlayer.HUD == nil then return "unknown" end
@@ -150,7 +166,32 @@ end
 function JumpToCraft(recipe)
     ClosePopup()
     if ThePlayer == nil or ThePlayer.HUD == nil then return end
+
     local hud = ThePlayer.HUD
+    local menu = hud.controls and hud.controls.craftingmenu
+    if menu and menu.Open then
+        -- Redux crafting menu (controls.craftingmenu IS CraftingMenuHUD)
+        menu:Open(false)
+        -- Get last used skin for this recipe
+        local skin = Profile and Profile:GetLastUsedSkinForItem(recipe.name)
+        menu:PopulateRecipeDetailPanel(recipe.name, skin)
+        -- Scroll the grid to this recipe + switch to its own filter tab
+        local w = menu.craftingmenu  -- CraftingMenuWidget
+        local recipe_data = menu.valid_recipes and menu.valid_recipes[recipe.name]
+        if recipe_data and w and w.recipe_grid then
+            local filter = _FindRecipeFilter(recipe.name) or CRAFTING_FILTERS.EVERYTHING.name
+            if w.SelectFilter then
+                w:SelectFilter(filter)
+            end
+            local idx = w.recipe_grid:FindDataIndex(recipe_data)
+            if idx then
+                w.recipe_grid:ScrollToDataIndex(idx)
+            end
+        end
+        return
+    end
+
+    -- Fallback: classic crafting menu
     hud:OpenCrafting()
     local cm = hud.controls and hud.controls.craftingmenu and hud.controls.craftingmenu.craftingmenu
     if cm == nil then return end
@@ -194,7 +235,7 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
     if highlight then slot.image:SetTint(1.2, 1.0, 0.6, 1) end
 
     if disp_prefab then
-        local dispname = STRINGS.NAMES[string.upper(disp_prefab)] or CN(disp_prefab) or disp_prefab
+        local dispname = CN(disp_prefab) or disp_prefab
         slot:SetTooltip(dispname)
     end
 
@@ -215,7 +256,7 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
             else
                 t:SetString(string.format("%d/%d", on_hand, need_amount))
             end
-            t:SetPosition(5, -32)
+            t:SetPosition(5, -31)
             t:SetColour(not has_enough and 1 or 1, not has_enough and 0.6 or 1, not has_enough and 0.6 or 1, 1)
         end
     end
@@ -281,7 +322,7 @@ function RenderCardCooking(r, card_y)
     local pri = WIT_CONTENT:AddChild(Text(NEWFONT, 18))
     if pri then
         pri:SetString(WIT_TXT.PRIORITY .. (r.priority or 0))
-        pri:SetPosition(130, card_y + 30)
+        pri:SetPosition(127, card_y + 30)
         pri:SetColour(1, 0.88, 0.55, 1)
     end
 
@@ -487,7 +528,15 @@ function CreatePopup(name, mode)
 
     local crafting_hud = ThePlayer.HUD.controls.craftingmenu
     local is_open = crafting_hud and crafting_hud:IsCraftingOpen()
-    local popup_x = is_open and 881 or 405
+    local pos_mode = GetModConfigData("POPUP_POSITION") or "auto"
+    local popup_x
+    if pos_mode == "left" then
+        popup_x = 350
+    elseif pos_mode == "right" then
+        popup_x = 900
+    else
+        popup_x = is_open and 881 or 405
+    end
     WIT_POPUP:SetPosition(popup_x, 35)
 
     local CRAFTING_ATLAS = resolvefilepath("images/crafting_menu.xml")
@@ -519,19 +568,176 @@ function CreatePopup(name, mode)
         if title_icon then title_icon:ScaleToSize(48, 48); title_icon:SetPosition(-150, title_y) end
     end
 
-    local dispname = STRINGS.NAMES[string.upper(name)] or name
+    local dispname = CN(name) or name
+    local title_x = 36    -- 右移 40px + 10px = 50px（相对原 -14）
+    local title_y = 196    -- 下移 6px（原 202，+Y 向上，所以 202-6=196）
     local title = WIT_POPUP:AddChild(Text(UIFONT, 34))
-    if title then title:SetString(dispname); title:SetPosition(-60, title_y); title:SetColour(0.95, 0.88, 0.7, 1) end
+    if title then
+        title:SetString(dispname)
+        title:SetPosition(title_x, title_y)
+        title:SetHAlign(ANCHOR_LEFT)
+        title:SetColour(0.95, 0.88, 0.7, 1)
+        title:SetRegionSize(280, 40)
+    end
+
+    -- Mod 来源（标题下方，同 x 坐标）
+    local mod_src = GetPrefabModName and GetPrefabModName(name)
+    if mod_src then
+        local src_t = WIT_POPUP:AddChild(Text(NEWFONT, 20))
+        if src_t then
+            src_t:SetString(WIT_TXT.FMT_MOD_SOURCE:format(mod_src))
+            src_t:SetPosition(title_x, title_y - 20)
+            src_t:SetHAlign(ANCHOR_LEFT)
+            src_t:SetColour(0.45, 0.65, 0.45, 0.9)
+            src_t:SetRegionSize(280, 30)
+        end
+    end
 
     local sep_top = WIT_POPUP:AddChild(Image("images/global.xml", "square.tex"))
     if sep_top then sep_top:SetSize(364, 1); sep_top:SetPosition(0, 150); sep_top:SetTint(0.3, 0.25, 0.18, 1) end
 
+    -- 右上角按钮的悬浮缩放效果
+    local function _AddHoverScale(btn, factor)
+        factor = factor or 1.12
+        local og = btn.OnGainFocus
+        local ol = btn.OnLoseFocus
+        btn.OnGainFocus = function(self)
+            self:SetScale(factor, factor)
+            if og then og(self) end
+        end
+        btn.OnLoseFocus = function(self)
+            self:SetScale(1, 1)
+            if ol then ol(self) end
+        end
+    end
+
     local close = WIT_POPUP:AddChild(TextButton())
     if close then
-        close:SetText(WIT_TXT.CLOSE); close:SetTextSize(20)
-        close:SetPosition(160, 160)
-        close:SetTextColour(0.5, 0.45, 0.38, 1); close:SetTextFocusColour(0.95, 0.85, 0.55, 1)
+        close:SetText("×")
+        close:SetTextSize(50)
+        close:SetPosition(172, 213)
+        close:SetTextColour(0.65, 0.58, 0.45, 1)
+        close:SetTextFocusColour(1, 1, 1, 1)
         close:SetOnClick(ClosePopup)
+        _AddHoverScale(close)
+    end
+
+    -- 设置按钮（打开原版 Mod 配置界面）
+    local WIT_SETTINGS_OPEN = false
+    local settings_root = nil
+    local function _OpenSettings()
+        if WIT_SETTINGS_OPEN then return end
+
+        -- 1. 本地化配置项（文本来自 wit_lang.lua 的 WIT_TXT）
+        local mod_info = GLOBAL.KnownModIndex:GetModInfo(modname)
+        if mod_info and mod_info.configuration_options then
+            local opts = mod_info.configuration_options
+            for _, opt in ipairs(opts) do
+                if opt.name == "LANGUAGE" then
+                    opt.label = WIT_TXT.CFG_LANG_LABEL
+                    opt.hover = WIT_TXT.CFG_LANG_HOVER
+                    opt.options[1].description = WIT_TXT.CFG_LANG_AUTO
+                    opt.options[2].description = WIT_TXT.CFG_LANG_ZH
+                    opt.options[3].description = WIT_TXT.CFG_LANG_EN
+                elseif opt.name == "KEY_R" then
+                    opt.label = WIT_TXT.CFG_KEY_R_LABEL
+                    opt.hover = WIT_TXT.CFG_KEY_R_HOVER
+                elseif opt.name == "KEY_U" then
+                    opt.label = WIT_TXT.CFG_KEY_U_LABEL
+                    opt.hover = WIT_TXT.CFG_KEY_U_HOVER
+                elseif opt.name == "POPUP_POSITION" then
+                    opt.label = WIT_TXT.CFG_POS_LABEL
+                    opt.hover = WIT_TXT.CFG_POS_HOVER
+                    opt.options[1].description = WIT_TXT.CFG_POS_AUTO
+                    opt.options[2].description = WIT_TXT.CFG_POS_LEFT
+                    opt.options[3].description = WIT_TXT.CFG_POS_RIGHT
+                end
+            end
+        end
+
+        local ModConfigScreen = require("screens/modconfigurationscreen")
+        local screen = ModConfigScreen(modname, true)
+        TheFrontEnd:PushScreen(screen)
+        WIT_SETTINGS_OPEN = true
+        settings_root = screen
+
+        -- 2. 屏幕创建后：修正 spinner 宽度 + KEY_R/U 改为交互式按键绑定
+        for i, opt_w in ipairs(screen.optionwidgets) do
+            local opt_data = screen.options[i]
+            if opt_data then
+                if opt_data.name == "LANGUAGE" then
+                    pcall(function()
+                        opt_w.spinner:SetWidth(260)
+                    end)
+                elseif opt_data.name == "KEY_R" or opt_data.name == "KEY_U" then
+                    local action = opt_data.name:match("KEY_(.)")
+                    if action and opt_w.spinner then
+                        local spinner = opt_w.spinner
+
+                        -- 1. 保存标签信息（label 是 spinner 的子控件，隐藏 spinner 会连带隐藏）
+                        local label_text = (opt_data.label or opt_data.name) .. ":"
+                        local label_hover = opt_data.hover or ""
+
+                        -- 2. 隐藏原 Spinner
+                        spinner:Hide()
+
+                        -- 3. 重建标签（作为 opt_w 的直接子控件）
+                        local LABEL_X = 122.5  -- spinner(325) + label_offset(-202.5)
+                        local new_label = opt_w:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, 25, label_text))
+                        new_label:SetPosition(LABEL_X, 0)
+                        new_label:SetRegionSize(225, 50)
+                        new_label:SetHAlign(GLOBAL.ANCHOR_RIGHT)
+                        new_label:SetColour(0, 0, 0, 1)
+                        new_label:SetHoverText(label_hover)
+
+                        -- 4. 新建交互式按键绑定按钮
+                        local btn = opt_w:AddChild(GLOBAL.TextButton())
+                        btn:SetTextSize(25)
+                        btn:SetPosition(325, 0)
+                        btn:SetTextColour(0, 0, 0, 1)
+                        btn:SetTextFocusColour(0.8, 0.2, 0.2, 1)
+                        btn:SetTooltip(WIT_TXT.CFG_REBIND_TOOLTIP)
+
+                        local function _UpdateBtnLabel()
+                            btn:SetText("[ " .. KeyName(WIT_KEYS[action]) .. " ]")
+                        end
+                        _UpdateBtnLabel()
+
+                        btn:SetOnClick(function()
+                            if WIT_REBINDING then return end
+                            btn:SetText(WIT_TXT.CFG_REBIND_WAIT)
+                            StartRebinding(action, function(_new_key)
+                                _UpdateBtnLabel()
+                            end)
+                        end)
+                    end
+                end
+            end
+        end
+
+        -- 监听屏幕关闭
+        local orig_ondestroy = screen.OnDestroy
+        screen.OnDestroy = function(s)
+            if orig_ondestroy then orig_ondestroy(s) end
+            WIT_SETTINGS_OPEN = false
+            settings_root = nil
+        end
+    end
+    -- 设置按钮（纯文本，与关闭按钮风格一致）
+    local cfg_btn = WIT_POPUP:AddChild(TextButton())
+    if cfg_btn then
+        cfg_btn:SetText("≡")
+        cfg_btn:SetTextSize(42)
+        cfg_btn:SetPosition(137, 214)
+        cfg_btn:SetTextColour(0.65, 0.58, 0.45, 1)
+        cfg_btn:SetTextFocusColour(1, 1, 1, 1)
+        cfg_btn:SetTooltip(WIT_TXT.CFG_BTN_TOOLTIP)
+        cfg_btn:SetOnClick(function()
+            if not WIT_SETTINGS_OPEN then
+                _OpenSettings()
+            end
+        end)
+        _AddHoverScale(cfg_btn)
     end
 
     WIT_TAB_BTNS = {}
@@ -571,8 +777,10 @@ end
 -- ============================
 -- 键盘输入处理 (from wit_input.lua)
 -- ============================
+-- 注意：全局按键分发器在 modmain.lua 中注册，
+-- 调用 WIT_DISPATCH_R / WIT_DISPATCH_U 进行转发。
 
-TheInput.onkeydown:AddEventHandler(WIT_KEY_R, function()
+function WIT_DISPATCH_R()
     local ok, e = pcall(function()
         if ThePlayer == nil then return end
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end
@@ -591,9 +799,9 @@ TheInput.onkeydown:AddEventHandler(WIT_KEY_R, function()
         CreatePopup(name, "SOURCE")
     end)
     if not ok then print("[WIT] R:", e) end
-end)
+end
 
-TheInput.onkeydown:AddEventHandler(WIT_KEY_U, function()
+function WIT_DISPATCH_U()
     local ok, e = pcall(function()
         if ThePlayer == nil then return end
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end
@@ -611,14 +819,15 @@ TheInput.onkeydown:AddEventHandler(WIT_KEY_U, function()
         CreatePopup(name, "USE")
     end)
     if not ok then print("[WIT] U:", e) end
-end)
+end
 
 -- ============================
 -- 物品信息页渲染 (from wit_iteminfo_render.lua)
 -- ============================
 
+local INFO_FONT = GLOBAL.NUMBERFONT   -- 信息栏字体，统一切换
 local ICON_SIZE = 56
-local FONT_SIZE = 24
+local FONT_SIZE = 26
 local START_Y = 65
 local ROW_H = 68
 local CARD_W = 370
@@ -677,7 +886,7 @@ function RenderItemInfo()
 
     local info = GetItemInfo and GetItemInfo(WIT_NAME)
     if not info or next(info) == nil then
-        local t = WIT_CONTENT:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, 24))
+        local t = WIT_CONTENT:AddChild(GLOBAL.Text(INFO_FONT, 24))
         if t then t:SetString(WIT_TXT.NO_INFO); t:SetPosition(0, 10); t:SetColour(0.6, 0.55, 0.4, 1) end
         return
     end
@@ -687,19 +896,19 @@ function RenderItemInfo()
     local function _RenderGroupCard(blocks)
         if #blocks == 0 then return end
         local MIN_X = -CARD_W/2 + 20
-        local MAX_X = CARD_W/2 - 20
+        local MAX_X = CARD_W/2 - 10
         local cx = MIN_X
         local row = 1
         local layouts = {}
         for _, b in ipairs(blocks) do
             local atlas = _ResolveAtlas(b.icon)
-            local dummy = GLOBAL.Text(GLOBAL.NEWFONT, FONT_SIZE)
+            local dummy = GLOBAL.Text(INFO_FONT, FONT_SIZE)
             dummy:SetString(b.text)
             local tw, th = dummy:GetRegionSize()
             dummy:Kill()
             local has_icon = atlas ~= nil
-            local bw = has_icon and (ICON_SIZE + 10 + tw) or (tw + 24)
-            if cx + bw > MAX_X then cx = MIN_X; row = row + 1 end
+            local bw = has_icon and (ICON_SIZE + 20 + tw) or (tw + 24)
+            if cx + bw > MAX_X and not b.no_wrap then cx = MIN_X; row = row + 1 end
             table.insert(layouts, {b=b, atlas=atlas, tw=tw, bw=bw, cx=cx, row=row, has_icon=has_icon})
             cx = cx + bw + 12
         end
@@ -715,12 +924,16 @@ function RenderItemInfo()
             w:SetPosition(l.cx + l.bw/2, cy)
             local icon_x = -l.bw/2
             if l.has_icon then
+                -- 物品栏图集图标（如 goldnugget）自带边距，缩小至 46x46 居中，与其他信息图标视觉一致
+                local is_inv_icon = l.atlas and l.atlas:match("inventoryimages%d*%.xml$")
+                local icon_size = is_inv_icon and (ICON_SIZE - 10) or ICON_SIZE
                 local img = w:AddChild(GLOBAL.Image(l.atlas, l.b.icon))
-                img:ScaleToSize(ICON_SIZE, ICON_SIZE)
+                img:ScaleToSize(icon_size, icon_size)
                 img:SetPosition(icon_x + ICON_SIZE/2, 0)
                 local tip = l.b.tip or _GetTooltip(l.b.icon)
                 if tip then w:SetTooltip(tip) end
-                local txt_w = w:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, FONT_SIZE))
+                -- 恢复原本居中计算模式，废弃导致坐标扭曲的 SetRegionSize/SetHAlign
+                local txt_w = w:AddChild(GLOBAL.Text(INFO_FONT, FONT_SIZE))
                 txt_w:SetString(l.b.text)
                 txt_w:SetColour(0.85, 0.78, 0.65, 1)
                 txt_w:SetPosition(icon_x + ICON_SIZE + 10 + l.tw/2, 0)
@@ -729,7 +942,7 @@ function RenderItemInfo()
                 local pill = w:AddChild(GLOBAL.Image("images/global.xml", "square.tex"))
                 pill:SetSize(l.bw, ROW_H - 8)
                 pill:SetTint(0.25, 0.22, 0.18, 0.8)
-                local txt_w = w:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, FONT_SIZE))
+                local txt_w = w:AddChild(GLOBAL.Text(INFO_FONT, FONT_SIZE))
                 txt_w:SetString(l.b.text)
                 txt_w:SetColour(0.85, 0.78, 0.65, 1)
                 if l.b.tip then txt_w:SetTooltip(l.b.tip) end
@@ -746,15 +959,15 @@ function RenderItemInfo()
         local hg = info.edible.hunger or 0
         local hl = info.edible.health or 0
         local sn = info.edible.sanity or 0
-        table.insert(blocks, {icon="icon_hunger.tex", text=(hg > 0 and "＋" or "") .. _fmt_num(hg)})
-        table.insert(blocks, {icon="icon_health.tex", text=(hl > 0 and "＋" or "") .. _fmt_num(hl)})
-        table.insert(blocks, {icon="icon_sanity.tex", text=(sn > 0 and "＋" or "") .. _fmt_num(sn)})
+        table.insert(blocks, {icon="icon_hunger.tex", text=(hg > 0 and "＋" or "") .. _fmt_num(hg), no_wrap=true})
+        table.insert(blocks, {icon="icon_health.tex", text=(hl > 0 and "＋" or "") .. _fmt_num(hl), no_wrap=true})
+        table.insert(blocks, {icon="icon_sanity.tex", text=(sn > 0 and "＋" or "") .. _fmt_num(sn), no_wrap=true})
         
         if info.edible.foodtype and info.edible.foodtype ~= "GENERIC" then
             local ft = tostring(info.edible.foodtype)
-            local ft_name = GLOBAL.STRINGS.SCRAPBOOK ~= nil and GLOBAL.STRINGS.SCRAPBOOK.FOODTYPE and GLOBAL.STRINGS.SCRAPBOOK.FOODTYPE[ft]
-            if ft_name == nil and WIT_TXT.FOODTYPE_NAMES then
-                ft_name = WIT_TXT.FOODTYPE_NAMES[ft]
+            local ft_name = WIT_TXT.FOODTYPE_NAMES and WIT_TXT.FOODTYPE_NAMES[ft]
+            if ft_name == nil and GLOBAL.STRINGS.SCRAPBOOK ~= nil and GLOBAL.STRINGS.SCRAPBOOK.FOODTYPE then
+                ft_name = GLOBAL.STRINGS.SCRAPBOOK.FOODTYPE[ft]
             end
             table.insert(blocks, {icon="icon_food.tex", text=ft_name or ft})
         end
@@ -762,8 +975,8 @@ function RenderItemInfo()
             local icon = info.edible.temperaturedelta > 0 and "icon_heat.tex" or "icon_cold.tex"
             local txt = _fmt_num(info.edible.temperaturedelta) .. "°C"
             if info.edible.temperatureduration then txt = txt .. " / " .. _fmt_num(info.edible.temperatureduration) .. "s" end
-            local tip_suffix = info.edible.temperaturedelta > 0 and "升温" or "降温"
-            table.insert(blocks, {icon=icon, text=txt, tip=tip_suffix .. "量 / 持续时间"})
+            local tip_suffix = info.edible.temperaturedelta > 0 and WIT_TXT.TIP_TEMP_HEAT or WIT_TXT.TIP_TEMP_COOL
+            table.insert(blocks, {icon=icon, text=txt, tip=tip_suffix .. WIT_TXT.TIP_TEMP_DUR})
         end
     end
     if info.healer then
@@ -771,14 +984,34 @@ function RenderItemInfo()
     end
     _RenderGroupCard(blocks)
 
+    -- 烹饪标签值（次级文本，位于食物类型卡片下方）
+    if info.edible then
+        local ing_tags = WIT.ingredient_tags and WIT.ingredient_tags[WIT_NAME]
+        if ing_tags then
+            local tag_parts = {}
+            for tag_name, tag_value in pairs(ing_tags) do
+                if tag_value > 0 then
+                    table.insert(tag_parts, CN(tag_name) .. " " .. _fmt_num(tag_value))
+                end
+            end
+            if #tag_parts > 0 then
+                local tag_t = WIT_CONTENT:AddChild(GLOBAL.Text(INFO_FONT, 20))
+                tag_t:SetString(table.concat(tag_parts, "  ·  "))
+                tag_t:SetPosition(0, current_y)
+                tag_t:SetColour(0.7, 0.65, 0.5, 0.8)
+                current_y = current_y - 22
+            end
+        end
+    end
+
     -- 分组 2：战斗与装备
     blocks = {}
     if info.weapon then
         local txt = tostring(info.weapon.damage)
-        local tip = "攻击伤害"
+        local tip = nil  -- 使用 ICON_TOOLTIPS 默认值
         if info.weapon.attackrange and info.weapon.attackrange > 1 then
             txt = txt .. " / " .. info.weapon.attackrange
-            tip = tip .. " / 攻击范围"
+            tip = WIT_TXT.TIP_ATK_RANGE
         end
         table.insert(blocks, {icon="icon_damage.tex", text=txt, tip=tip})
     end
@@ -796,18 +1029,18 @@ function RenderItemInfo()
             table.insert(blocks, {icon="icon_clothing.tex", text=slot_txt})
         end
         if info.equippable.walkspeedmult and info.equippable.walkspeedmult ~= 1 then
-            table.insert(blocks, {icon="cane.tex", text="x " .. string.format("%.2f", info.equippable.walkspeedmult)})
+            table.insert(blocks, {icon="cane.tex", text="×" .. string.format("%.2f", info.equippable.walkspeedmult)})
         end
         if info.equippable.dapperness and info.equippable.dapperness ~= 0 then
             local dpm = info.equippable.dapperness * 60
             local sign = dpm > 0 and "＋" or ""
-            table.insert(blocks, {icon="icon_sanity.tex", text=sign .. string.format("%.2f/min", dpm), tip="装备时理智变化（/分钟）"})
+            table.insert(blocks, {icon="icon_sanity.tex", text=sign .. string.format("%.2f/min", dpm), tip=WIT_TXT.TIP_SANITY_EQUIP})
         end
     end
     if info.sanityaura and info.sanityaura.aura and info.sanityaura.aura ~= 0 then
         local apm = info.sanityaura.aura * 60
         local sign = apm > 0 and "＋" or ""
-        table.insert(blocks, {icon="icon_sanity.tex", text=sign .. string.format("%.2f/min", apm), tip="附近时理智光环（/分钟）"})
+        table.insert(blocks, {icon="icon_sanity.tex", text=sign .. string.format("%.2f/min", apm), tip=WIT_TXT.TIP_SANITY_AURA})
     end
     _RenderGroupCard(blocks)
 
@@ -816,8 +1049,8 @@ function RenderItemInfo()
     if info.tools and #info.tools > 0 then
         for _, t in ipairs(info.tools) do
             local eff = t.efficiency or 1
-            local txt = CN(t.action) .. "x " .. _fmt_num(eff)
-            table.insert(blocks, {icon="icon_action.tex", text=txt, tip="工具效率倍率"})
+            local txt = CN(t.action) .. "×" .. _fmt_num(eff)
+            table.insert(blocks, {icon="icon_action.tex", text=txt, tip=WIT_TXT.TIP_TOOL_EFF})
         end
     end
     if info.finiteuses then table.insert(blocks, {icon="icon_uses.tex", text=tostring(info.finiteuses.maxuses)}) end
@@ -826,41 +1059,40 @@ function RenderItemInfo()
     -- 分组 4：杂项特性
     blocks = {}
     if info.perishable then
-        table.insert(blocks, {icon="icon_spoil.tex", text=_fmt_time(info.perishable.perishtime), tip="腐烂时间"})
+        table.insert(blocks, {icon="icon_spoil.tex", text=_fmt_time(info.perishable.perishtime), tip=WIT_TXT.TIP_SPOIL})
     end
     if info.burnable then
-        table.insert(blocks, {icon="icon_burnable.tex", text=_fmt_time(info.burnable.burntime), tip="作为燃料时燃烧时长"})
+        table.insert(blocks, {icon="icon_burnable.tex", text=_fmt_time(info.burnable.burntime), tip=WIT_TXT.TIP_BURN})
     end
     if info.fueled then
-        local tip = (info.fueled.fueltype == "USAGE") and "装备磨损耐久" or "燃料时长"
+        local tip = (info.fueled.fueltype == "USAGE") and WIT_TXT.TIP_FUEL_USAGE or WIT_TXT.TIP_FUEL_TIME
         table.insert(blocks, {icon="icon_fuel.tex", text=_fmt_time(info.fueled.maxfuel), tip=tip})
     end
-    if info.sewable then table.insert(blocks, {icon="icon_sewingkit.tex", text=WIT_TXT.SEWABLE, tip="可使用缝纫包修复"}) end
+    if info.sewable then table.insert(blocks, {icon="icon_sewingkit.tex", text=WIT_TXT.SEWABLE, tip=WIT_TXT.TIP_SEW}) end
     if info.waterproofer then
         local pct = math.floor((info.waterproofer.effectiveness or 0) * 100)
-        table.insert(blocks, {icon="icon_wetness.tex", text=pct .. "%", tip="防水效果百分比"})
+        table.insert(blocks, {icon="icon_wetness.tex", text=pct .. "%", tip=WIT_TXT.TIP_WATERPROOF})
     end
     if info.insulator then
         local icon = info.insulator.type == GLOBAL.SEASONS.SUMMER and "icon_heat.tex" or "icon_cold.tex"
-        local tip = info.insulator.type == GLOBAL.SEASONS.SUMMER and "隔热时长（夏季）" or "保暖时长（冬季）"
+        local tip = info.insulator.type == GLOBAL.SEASONS.SUMMER and WIT_TXT.TIP_INSULATE_SUMMER or WIT_TXT.TIP_INSULATE_WINTER
         table.insert(blocks, {icon=icon, text=math.floor(info.insulator.insulation or 0) .. "s", tip=tip})
     end
     if info.stackable and info.stackable.maxsize and info.stackable.maxsize > 1 then
-        table.insert(blocks, {icon="icon_stack.tex", text="x " .. info.stackable.maxsize})
+        table.insert(blocks, {icon="icon_stack.tex", text="×" .. info.stackable.maxsize})
     end
     if info.tradable and info.tradable.goldvalue and info.tradable.goldvalue > 0 then
-        table.insert(blocks, {icon="goldnugget.tex", text=tostring(info.tradable.goldvalue)})
+        table.insert(blocks, {icon="goldnugget.tex", text=tostring(info.tradable.goldvalue), tip=WIT_TXT.TIP_TRADE})
     end
     if info.repairable then
         if info.repairable.repairmaterial then
             local mat_name = CN(info.repairable.repairmaterial)
-            -- icon_wrench.tex is confirmed to exist in scrapbook_icons1.xml
-            table.insert(blocks, {icon="icon_wrench.tex", text=mat_name, tip="可使用该材料修复"})
+            table.insert(blocks, {icon="icon_wrench.tex", text=mat_name, tip=WIT_TXT.TIP_REPAIR_MAT})
         elseif info.repairable.repairitems and #info.repairable.repairitems > 0 then
             local mat_name = CN(info.repairable.repairitems[1])
-            table.insert(blocks, {icon="icon_wrench.tex", text=mat_name, tip="可使用该材料修复"})
+            table.insert(blocks, {icon="icon_wrench.tex", text=mat_name, tip=WIT_TXT.TIP_REPAIR_MAT})
         else
-            table.insert(blocks, {icon="icon_wrench.tex", text=WIT_TXT.REPAIRABLE, tip="可修复"})
+            table.insert(blocks, {icon="icon_wrench.tex", text=WIT_TXT.REPAIRABLE})
         end
     end
     _RenderGroupCard(blocks)
@@ -869,9 +1101,9 @@ function RenderItemInfo()
     local bottom_texts = {}
     if info.edible and info.edible.player_can_eat == false then
         if info.edible.eater_hint then
-            table.insert(bottom_texts, "可被 " .. info.edible.eater_hint .. " 食用")
+            table.insert(bottom_texts, WIT_TXT.FMT_EDIBLE_BY:format(info.edible.eater_hint))
         else
-            table.insert(bottom_texts, "非玩家可食用")
+            table.insert(bottom_texts, WIT_TXT.FMT_INEDIBLE)
         end
     end
 
@@ -890,7 +1122,7 @@ function RenderItemInfo()
     end
 
     for i, txt in ipairs(bottom_texts) do
-        local t = WIT_CONTENT:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, 18))
+        local t = WIT_CONTENT:AddChild(GLOBAL.Text(INFO_FONT, 18))
         if t then
             t:SetString(txt)
             t:SetPosition(0, current_y - 10 - (i - 1) * 22)

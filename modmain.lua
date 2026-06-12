@@ -18,12 +18,9 @@ ImageButton = GLOBAL.ImageButton
 
 -- ============================
 -- 全局常量 (WIT_ 前缀避免全局污染)
--- ============================
-WIT_COOKING_ALIASES = { cookedsmallmeat = "smallmeat_cooked", cookedmonstermeat = "monstermeat_cooked", cookedmeat = "meat_cooked" }
-WIT_INGREDIENT_PREFAB_MAP = { egg = "bird_egg" }
-WIT_PAGE_SIZE = 3
-WIT_KEY_R = GetModConfigData("KEY_R") or 114
-WIT_KEY_U = GetModConfigData("KEY_U") or 117
+-- 注意：WIT_KEYS 在 wit_core.lua 中定义（支持运行时重绑定）
+-- WIT_COOKING_ALIASES / WIT_INGREDIENT_PREFAB_MAP → wit_core.lua
+-- WIT_PAGE_SIZE → wit_ui.lua
 
 -- ============================
 -- 数据层状态
@@ -73,6 +70,21 @@ end)
 modimport("scripts/wit_lang")
 modimport("scripts/wit_core")
 modimport("scripts/wit_ui")
+
+-- 注册全局按键分发器（两个模块加载完后 WIT_DISPATCH_R/U 才可用）
+TheInput:AddKeyHandler(function(key, down)
+    if not down then return end
+    -- 重绑定模式：捕获按键后更新UI
+    if WIT_REBINDING then
+        CompleteRebinding(key)
+        return
+    end
+    if key == WIT_KEYS.R then
+        WIT_DISPATCH_R()
+    elseif key == WIT_KEYS.U then
+        WIT_DISPATCH_U()
+    end
+end)
 
 -- ============================
 -- 初始化事件

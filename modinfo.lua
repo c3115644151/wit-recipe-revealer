@@ -1,7 +1,7 @@
 name = "[JEI] What Is This"
 description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。"
 author = "凝筝"
-version = "1.1.0"
+version = "1.2.0"
 api_version = 10
 client_only_mod = true
 dst_compatible = true
@@ -12,48 +12,91 @@ priority = 0
 icon_atlas = "images/modicon.xml"
 icon = "modicon.tex"
 
--- 配置项
+-- 配置项（运行时由 _OpenSettings 根据语言动态本地化）
 configuration_options =
 {
     {
         name = "LANGUAGE",
-        label = "语言 / Language",
-        hover = "选择界面语言 / Select UI language",
+        label = "界面语言",
+        hover = "选择 Mod 界面显示语言（切换后需重启游戏生效）",
         options =
         {
-            {description = "自动 (Auto)", data = "auto"},
+            {description = "自动", data = "auto"},
             {description = "中文", data = "zh"},
-            {description = "English", data = "en"},
+            {description = "英文", data = "en"},
         },
         default = "auto",
     },
     {
         name = "KEY_R",
-        label = "R 键 - 来源查询",
+        label = "来源查询键",
+        hover = "悬浮物品后按下此键，查看该物品的制作/烹饪配方",
         options =
         {
-            {description = "R (默认)", data = 114},
-            {description = "F", data = 102},
-            {description = "T", data = 116},
-            {description = "Y", data = 121},
-            -- 选常用键
+            {description = "Z", data = 122},
+            {description = "X", data = 120},
             {description = "C", data = 99},
             {description = "V", data = 118},
+            {description = "B", data = 98},
+            {description = "N", data = 110},
+            {description = "M", data = 109},
+            {description = "F", data = 102},
+            {description = "G", data = 103},
+            {description = "H", data = 104},
+            {description = "J", data = 106},
+            {description = "K", data = 107},
+            {description = "L", data = 108},
+            {description = "Q", data = 113},
+            {description = "R (默认)", data = 114},
+            {description = "T", data = 116},
+            {description = "Y", data = 121},
+            {description = "U", data = 117},
+            {description = "I", data = 105},
+            {description = "O", data = 111},
+            {description = "P", data = 112},
         },
         default = 114,
     },
     {
         name = "KEY_U",
-        label = "U 键 - 用途查询",
+        label = "用途查询键",
+        hover = "悬浮物品后按下此键，查看该物品的用途",
         options =
         {
-            {description = "U (默认)", data = 117},
-            {description = "F", data = 102},
-            {description = "T", data = 116},
-            {description = "Y", data = 121},
+            {description = "Z", data = 122},
+            {description = "X", data = 120},
             {description = "C", data = 99},
             {description = "V", data = 118},
+            {description = "B", data = 98},
+            {description = "N", data = 110},
+            {description = "M", data = 109},
+            {description = "F", data = 102},
+            {description = "G", data = 103},
+            {description = "H", data = 104},
+            {description = "J", data = 106},
+            {description = "K", data = 107},
+            {description = "L", data = 108},
+            {description = "Q", data = 113},
+            {description = "R", data = 114},
+            {description = "T", data = 116},
+            {description = "Y", data = 121},
+            {description = "U (默认)", data = 117},
+            {description = "I", data = 105},
+            {description = "O", data = 111},
+            {description = "P", data = 112},
         },
         default = 117,
+    },
+    {
+        name = "POPUP_POSITION",
+        label = "弹窗位置",
+        hover = "信息弹窗的水平显示位置",
+        options =
+        {
+            {description = "自动（跟随合成栏）", data = "auto"},
+            {description = "居左", data = "left"},
+            {description = "居右", data = "right"},
+        },
+        default = "auto",
     },
 }

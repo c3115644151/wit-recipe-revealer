@@ -20,7 +20,7 @@ if LANG == "zh" then
 	TXT.TAB_COOKING = "烹饪"
 	TXT.TAB_INFO = "信息"
 	TXT.PRIORITY = "P"
-	TXT.CLOSE = "✕"
+	TXT.CLOSE = "×"
 	TXT.LOADING = "加载中..."
 	TXT.NO_INFO = "无详细信息"
 	TXT.AUTO_COOK_TIP = "自动放入"
@@ -108,13 +108,55 @@ if LANG == "zh" then
 		goldnugget = "交易价值",
 	}
 
+	-- 信息栏区块提示
+	TXT.TIP_SPOIL = "腐烂时间"
+	TXT.TIP_ATK_RANGE = "攻击范围"
+	TXT.TIP_TOOL_EFF = "工具效率倍率"
+	TXT.TIP_BURN = "作为燃料时燃烧时长"
+	TXT.TIP_FUEL_USAGE = "装备磨损耐久"
+	TXT.TIP_FUEL_TIME = "燃料时长"
+	TXT.TIP_SEW = "可使用缝纫包修复"
+	TXT.TIP_WATERPROOF = "防水效果百分比"
+	TXT.TIP_INSULATE_SUMMER = "隔热时长（夏季）"
+	TXT.TIP_INSULATE_WINTER = "保暖时长（冬季）"
+	TXT.TIP_TRADE = "交易价值"
+	TXT.TIP_REPAIR_MAT = "可使用该材料修复"
+	TXT.TIP_TEMP_HEAT = "升温"
+	TXT.TIP_TEMP_COOL = "降温"
+	TXT.TIP_TEMP_DUR = "量 / 持续时间"
+	TXT.TIP_SANITY_AURA = "附近时理智光环（/分钟）"
+	TXT.TIP_SANITY_EQUIP = "装备时理智变化（/分钟）"
+	TXT.FMT_EDIBLE_BY = "可被 %s 食用"
+	TXT.FMT_INEDIBLE = "非玩家可食用"
+	TXT.FMT_COND_ZERO = "＝０"
+	TXT.EATER_BEEFALO = "皮弗娄牛"
+	TXT.EATER_SHADOW = "暗影生物"
+	TXT.FMT_MOD_SOURCE = "[来自] %s"
+	TXT.CFG_LANG_LABEL = "界面语言"
+	TXT.CFG_LANG_HOVER = "选择 Mod 界面显示语言。切换后需重启游戏生效"
+	TXT.CFG_LANG_AUTO = "自动"
+	TXT.CFG_LANG_ZH = "中文"
+	TXT.CFG_LANG_EN = "英文"
+	TXT.CFG_KEY_R_LABEL = "来源查询键"
+	TXT.CFG_KEY_R_HOVER = "悬浮物品后按下此键，查看该物品的制作/烹饪配方。点击下方按键按钮后输入任意键即时修改"
+	TXT.CFG_KEY_U_LABEL = "用途查询键"
+	TXT.CFG_KEY_U_HOVER = "悬浮物品后按下此键，查看该物品的用途。点击下方按键按钮后输入任意键即时修改"
+	TXT.CFG_POS_LABEL = "弹窗位置"
+	TXT.CFG_POS_HOVER = "信息弹窗的水平显示位置"
+	TXT.CFG_POS_AUTO = "自动（跟随合成栏）"
+	TXT.CFG_POS_LEFT = "居左"
+	TXT.CFG_POS_RIGHT = "居右"
+	TXT.CFG_BTN_TOOLTIP = "打开 Mod 配置 - 调整语言、按键绑定等"
+	TXT.CFG_REBIND_TOOLTIP = "点击后按下任意键修改，按 Esc 取消"
+	TXT.CFG_REBIND_WAIT = "[ 按任意键... ]"
+
 else
 	-- ======== 英文 ========
 	TXT.TAB_CRAFTING = "Crafting"
 	TXT.TAB_COOKING = "Cooking"
 	TXT.TAB_INFO = "Info"
 	TXT.PRIORITY = "P"
-	TXT.CLOSE = "✕"
+	TXT.CLOSE = "×"
 	TXT.LOADING = "Loading..."
 	TXT.NO_INFO = "No detailed info"
 	TXT.AUTO_COOK_TIP = "Auto Cook"
@@ -199,25 +241,73 @@ else
 		cane = "Speed Bonus",
 		goldnugget = "Trade Value",
 	}
+
+	-- Info block tooltips (English)
+	TXT.TIP_SPOIL = "Spoilage Time"
+	TXT.TIP_ATK_RANGE = "Attack Range"
+	TXT.TIP_TOOL_EFF = "Tool Efficiency"
+	TXT.TIP_BURN = "Burn Duration as Fuel"
+	TXT.TIP_FUEL_USAGE = "Equipment Durability"
+	TXT.TIP_FUEL_TIME = "Fuel Duration"
+	TXT.TIP_SEW = "Repairable with Sewing Kit"
+	TXT.TIP_WATERPROOF = "Waterproofing"
+	TXT.TIP_INSULATE_SUMMER = "Insulation (Summer)"
+	TXT.TIP_INSULATE_WINTER = "Insulation (Winter)"
+	TXT.TIP_TRADE = "Trade Value"
+	TXT.TIP_REPAIR_MAT = "Repairable with this material"
+	TXT.TIP_TEMP_HEAT = "Heating"
+	TXT.TIP_TEMP_COOL = "Cooling"
+	TXT.TIP_TEMP_DUR = "Amount / Duration"
+	TXT.TIP_SANITY_AURA = "Sanity Aura (/min) nearby"
+	TXT.TIP_SANITY_EQUIP = "Sanity Change (/min) when equipped"
+	TXT.FMT_EDIBLE_BY = "Edible by %s"
+	TXT.FMT_INEDIBLE = "Not edible by players"
+	TXT.FMT_COND_ZERO = "=0"
+	TXT.EATER_BEEFALO = "Beefalo"
+	TXT.EATER_SHADOW = "Shadow Creature"
+	TXT.FMT_MOD_SOURCE = "[From] %s"
+
+	-- Mod Config UI (English)
+	TXT.CFG_LANG_LABEL = "Language"
+	TXT.CFG_LANG_HOVER = "Select UI language. Requires game restart to take effect"
+	TXT.CFG_LANG_AUTO = "Auto"
+	TXT.CFG_LANG_ZH = "Chinese"
+	TXT.CFG_LANG_EN = "English"
+	TXT.CFG_KEY_R_LABEL = "Source Key"
+	TXT.CFG_KEY_R_HOVER = "Hover an item and press to see recipes. Click the key button below to rebind interactively."
+	TXT.CFG_KEY_U_LABEL = "Usage Key"
+	TXT.CFG_KEY_U_HOVER = "Hover an item and press to see uses. Click the key button below to rebind interactively."
+	TXT.CFG_POS_LABEL = "Popup Position"
+	TXT.CFG_POS_HOVER = "Horizontal position of the info popup"
+	TXT.CFG_POS_AUTO = "Auto (Follow crafting)"
+	TXT.CFG_POS_LEFT = "Left"
+	TXT.CFG_POS_RIGHT = "Right"
+	TXT.CFG_BTN_TOOLTIP = "Open Mod Configuration - Language, key bindings, etc."
+	TXT.CFG_REBIND_TOOLTIP = "Click then press any key to rebind, Esc to cancel"
+	TXT.CFG_REBIND_WAIT = "[ Press any key... ]"
 end
 
 function CN(tag)
 	-- 1. 烹饪标签名（蛋度、肉度等）
 	local t = TXT.TAG_NAMES[tag]
 	if t then return t end
-	-- 2. 具体食材/物品名（洞穴香蕉、火龙果等）
-	if STRINGS and STRINGS.NAMES then
-		local name = STRINGS.NAMES[string.upper(tag)]
-		if name then return name end
+	-- 2. 具体食材/物品名：中文模式用 STRINGS.NAMES，英文模式跳过避免返回中文
+	if LANG == "zh" then
+		if STRINGS and STRINGS.NAMES then
+			local name = STRINGS.NAMES[string.upper(tag)]
+			if name then return name end
+		end
+		-- 3. 动作名（砍树、挖矿等）
+		if STRINGS and STRINGS.ACTIONS then
+			local act = STRINGS.ACTIONS[string.upper(tag)]
+			if act and type(act) == "string" then return act end
+			if act and type(act) == "table" and act.GENERIC then return act.GENERIC end
+		end
 	end
-	-- 3. 动作名（砍树、挖矿等）
-	if STRINGS and STRINGS.ACTIONS then
-		local act = STRINGS.ACTIONS[string.upper(tag)]
-		if act and type(act) == "string" then return act end
-		-- Some actions might be tables, e.g. ACTIVATE.GENERIC
-		if act and type(act) == "table" and act.GENERIC then return act.GENERIC end
+	-- 4. 纯回退：英文模式下至少首字母大写
+	if LANG == "en" then
+		return tag:sub(1,1):upper() .. tag:sub(2)
 	end
-	-- 4. 纯回退
 	return tag
 end
 
