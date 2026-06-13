@@ -264,6 +264,9 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
     if disp_prefab then
         local dispname = CN(disp_prefab) or disp_prefab
         slot:SetTooltip(dispname)
+    elseif WIT_TXT and WIT_TXT.FILLER_SLOT then
+        slot:SetTooltip(WIT_TXT.FILLER_SLOT_TIP or WIT_TXT.FILLER_SLOT)
+        slot.image:SetTint(0.5, 0.5, 0.5, 0.4)
     end
 
     if disp_prefab then
@@ -599,16 +602,27 @@ function SelectCategory(cat, reset_page)
     end
 
     local recipes = GetCurrentRecipes()
-    -- U 模式烹饪：过滤 + 排序
+    -- U 模式烹饪：过滤 + 排序（带 pcall 保护）
     if cat == "COOKING" and WIT_MODE == "USE" then
         local ctx = WIT_COOK_CONTEXT
         local inv_counts = ctx and ctx.snapshot and ctx.snapshot.counts or {}
         local filtered = {}
-        for _, r in ipairs(recipes) do
-            local view = GetResolvedCookingCard(r, WIT_NAME)
-            if view then
-                r._cook_view = view
-                table.insert(filtered, r)
+        local ok_resolve = pcall(function()
+            for _, r in ipairs(recipes) do
+                local view = GetResolvedCookingCard(r, WIT_NAME)
+                if view then
+                    r._cook_view = view
+                    table.insert(filtered, r)
+                end
+            end
+        end)
+        if not ok_resolve then
+            for _, r in ipairs(recipes) do
+                if r.card_def and r.card_def.ingredients then
+                    local raw = FlattenIngredients(r.card_def.ingredients)
+                    r._cook_view = { slots = PadSlots(raw, 4), need_map = BuildNeedMap(r.card_def.ingredients), can_auto_cook = false }
+                    table.insert(filtered, r)
+                end
             end
         end
         table.sort(filtered, function(a, b)

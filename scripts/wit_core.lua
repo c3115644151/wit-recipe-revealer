@@ -138,8 +138,12 @@ function BuildNeedMap(ingredients)
 end
 
 function PadSlots(slots, count)
-    while #slots < count do
-        table.insert(slots, nil)
+    -- 注意：Lua 5.1 中 # 运算符对含 nil 空洞的数组行为未定义
+    -- 必须先保存初始长度再手动计数，避免 while #slots < count 死循环
+    local n = #slots
+    if n >= count then return slots end
+    for i = n + 1, count do
+        slots[i] = nil
     end
     return slots
 end
