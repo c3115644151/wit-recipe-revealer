@@ -901,7 +901,7 @@ end
 -- ============================
 
 function GetOpenCookPot()
-    if ThePlayer == nil or ThePlayer.replica == nil then return nil end
+    if ThePlayer == nil or ThePlayer.replica == nil or ThePlayer.replica.inventory == nil then return nil end
     local containers = ThePlayer.replica.inventory:GetOpenContainers()
     if containers == nil then return nil end
     for ent, _ in pairs(containers) do
