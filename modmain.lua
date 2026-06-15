@@ -93,6 +93,7 @@ end)
 -- ============================
 -- 初始化事件
 -- ============================
+
 AddPlayerPostInit(function(inst)
     local function wit_refresh()
         WIT_OPEN_COOKPOT = GetOpenCookPot()

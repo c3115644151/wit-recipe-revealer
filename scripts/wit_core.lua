@@ -381,11 +381,78 @@ function BuildIndexes()
             end
         end
     end
+    BuildSourceIndexes()
 end
 
 -- ============================
--- 烹饪条件格式化（仅使用硬编码表，源自 wiki 数据）
+-- 来源索引构建 (SOURCES tab data)
 -- ============================
+-- WIT.entity_loot[entity_prefab] = { {prefab, count, chance, type}, ... }
+-- 数据来源：图鉴数据 deps + GLOBAL.LootTables（含概率）
+-- 不硬编码、不主动 SpawnPrefab、不运行时钩子
+WIT.entity_loot = {}
+
+-- 将 scrapbook entry 的 workable/pickable/type 映射为来源类型
+-- 只对真正有"产出"的实体类型归类，排斥纯物品和食物
+local function _IsSourceEntity(entry)
+    -- 纯物品/食物不是"来源实体"，排除它们（如疙瘩树果 oceantreenut 是 item 类型）
+    if entry.type == "item" or entry.type == "food" then return false end
+    if entry.pickable then return true end
+    if entry.workable == "MINE" or entry.workable == "CHOP" or entry.workable == "DIG" or entry.workable == "HAMMER" then return true end
+    if entry.type == "creature" or entry.type == "giant" or entry.type == "thing" or entry.type == "pointsofinterest" then return true end
+    return false
+end
+
+local function _ResolveSourceType(entry)
+    if entry.pickable then return "pick" end
+    if entry.workable == "MINE" then return "mine" end
+    if entry.workable == "CHOP" then return "chop" end
+    if entry.workable == "DIG" then return "dig" end
+    if entry.workable == "HAMMER" then return "hammer" end
+    return "drop"
+end
+
+function BuildSourceIndexes()
+    local scrap_data_ok, scrap_data = pcall(GLOBAL.require, "screens/redux/scrapbookdata")
+    if not (scrap_data_ok and type(scrap_data) == "table") then return end
+
+    for _, entry in pairs(scrap_data) do
+        if type(entry) == "table" and entry.prefab and entry.tex then
+            local prefab = entry.prefab
+
+            -- 优先用 GLOBAL.LootTables（含精确概率，来源可靠）
+            local lt = GLOBAL.LootTables and GLOBAL.LootTables[prefab]
+            if lt and #lt > 0 then
+                local src_type = _ResolveSourceType(entry)
+                local loots = {}
+                for _, v in ipairs(lt) do
+                    local prod, chance = v[1], v[2]
+                    if prod and chance and chance > 0 then
+                        table.insert(loots, { prefab = prod, count = 1, chance = chance, type = src_type })
+                    end
+                end
+                if #loots > 0 then WIT.entity_loot[prefab] = loots end
+            elseif entry.deps and type(entry.deps) == "table" and #entry.deps > 0 and _IsSourceEntity(entry) then
+                -- 无 LootTables 时使用 deps，合并重复的固定掉落
+                local src_type = _ResolveSourceType(entry)
+                local merged = {}
+                for _, dep in ipairs(entry.deps) do
+                    if type(dep) == "string" then
+                        merged[dep] = (merged[dep] or 0) + 1
+                    end
+                end
+                local loots = {}
+                for dep, count in pairs(merged) do
+                    table.insert(loots, { prefab = dep, count = count, type = src_type })
+                end
+                if #loots > 0 then WIT.entity_loot[prefab] = loots end
+            end
+        end
+    end
+
+    local count = 0; for _ in pairs(WIT.entity_loot) do count = count + 1 end
+    print("[WIT] BuildSourceIndexes done, entities:", count)
+end
 
 -- 硬编码烹饪条件表
 local HARDCODED_CONDITIONS = {
@@ -675,6 +742,13 @@ end
 function GetItemInfo(prefab)
     if prefab == nil then return nil end
     if WIT_ITEM_DB[prefab] ~= nil then return WIT_ITEM_DB[prefab] end
+
+    -- 通用蓝图（blueprint）在无玩家上下文中 SpawnPrefab 会崩溃，返回空数据
+    -- 具体蓝图（xxx_blueprint）有独立 prefab 定义，可正常 SpawnPrefab
+    if prefab == "blueprint" then
+        WIT_ITEM_DB[prefab] = {}
+        return WIT_ITEM_DB[prefab]
+    end
 
     local IsMasterSim = GLOBAL.TheWorld.ismastersim
     GLOBAL.TheWorld.ismastersim = true

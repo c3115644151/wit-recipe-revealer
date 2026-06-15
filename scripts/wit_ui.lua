@@ -13,13 +13,143 @@
 -- ============================
 -- 弹窗状态 (从 modmain.lua 移过来的 UI 专用变量)
 -- ============================
--- (WIT_POPUP, WIT_NAME, WIT_MODE, WIT_CUR_CAT, WIT_PAGE,
+--  (WIT_POPUP, WIT_NAME, WIT_MODE, WIT_CUR_CAT, WIT_PAGE,
 --  WIT_AVAIL_CATS, WIT_CONTENT, WIT_TAB_BTNS, WIT_PG_TEXT,
 --  WIT_PG_PREV, WIT_PG_NEXT 在 modmain.lua 中声明)
+
+-- UIAnim 动画控件（官方图鉴详情页用于实体 3D 模型渲染）
+local UIAnim = GLOBAL.require("widgets/uianim")
 
 -- ============================
 -- 图标图集解析（提取为全局，供悬浮面板和 RenderItemInfo 共用）
 -- ============================
+
+-- 图鉴数据缓存：完整 entry（含 tex/build/bank/anim/type）
+local _scrapbook_entry_map = nil
+local function _GetScrapbookEntry(prefab)
+    if _scrapbook_entry_map == nil then
+        _scrapbook_entry_map = {}
+        local ok, data = pcall(GLOBAL.require, "screens/redux/scrapbookdata")
+        if ok and type(data) == "table" then
+            for _, entry in pairs(data) do
+                if type(entry) == "table" and entry.prefab then
+                    _scrapbook_entry_map[entry.prefab] = entry
+                end
+            end
+        end
+    end
+    return _scrapbook_entry_map[prefab]
+end
+
+-- 图鉴 tex 名查询（兼容遗留调用）
+local function _GetScrapbookTex(prefab)
+    local entry = _GetScrapbookEntry(prefab)
+    return entry and entry.tex or nil
+end
+
+-- 图标图集解析（用于物品/战利品图集查找）
+function ResolveEntityIconAtlas(name)
+    local entry = _GetScrapbookEntry(name)
+    if entry and entry.tex then
+        local a = GLOBAL.GetScrapbookIconAtlas and GLOBAL.GetScrapbookIconAtlas(entry.tex)
+        if a then return a, entry.tex end
+        local ia = GLOBAL.GetInventoryItemAtlas(entry.tex)
+        if ia then return ia, entry.tex end
+    end
+    return nil, nil
+end
+
+-- 创建实体来源图标控件
+-- 实体 → UIAnim() 动态渲染 3D 模型（无框，与图鉴详情页一致）
+-- 物品 → Image 库存图集（纯图标无框）
+-- 返回带有 SetTooltip/OnMouseButton 支持的 widget
+function CreateEntityIconWidget(parent, prefab, size, pos_x, pos_y)
+    local entry = _GetScrapbookEntry(prefab)
+    if entry == nil then return nil end
+
+    -- ImageButton 作为交互基础（tooltip + click）
+    local btn = parent:AddChild(ImageButton("images/hud.xml", "inv_slot.tex"))
+    if not btn then return nil end
+    btn:SetPosition(pos_x, pos_y)
+    btn:ForceImageSize(size, size)
+    btn.image:SetTint(0, 0, 0, 0)  -- 透明背景
+
+    -- 物品/食物 → 库存图集 Image（纯图标无框）
+    if entry.type == "item" or entry.type == "food" then
+        if entry.tex then
+            local atlas = GLOBAL.GetInventoryItemAtlas(entry.tex)
+            if atlas then
+                btn.image:SetTint(1, 1, 1, 1)
+                btn:SetTextures(atlas, entry.tex)
+            end
+        end
+        return btn
+    end
+
+    -- 实体 → UIAnim（3D 模型动态渲染，完全无框）
+    if entry.build and entry.bank then
+        pcall(function()
+            local anim = btn:AddChild(UIAnim())
+            if anim == nil then return end
+            local s = anim:GetAnimState()
+            if s == nil then return end
+            s:SetBuild(entry.build)
+            s:SetBank(entry.bank)
+            if entry.anim and #entry.anim > 0 then
+                s:SetPercent(entry.anim, 0.5)
+            end
+            -- 官方图鉴通用隐藏（防多余符号/错误渲染，如晾肉架的红色残留）
+            s:Hide("snow")
+            s:Hide("mouseover")
+            if entry.hide then
+                for _, h in ipairs(entry.hide) do s:Hide(h) end
+            end
+            if entry.hidesymbol then
+                for _, h in ipairs(entry.hidesymbol) do s:HideSymbol(h) end
+            end
+            -- 官方图鉴渲染逻辑：完整复刻（PopulateInfoPanel ~1687-1757）
+            local x1, y1, x2, y2 = s:GetVisualBB()
+            local aw, ay = anim:GetBoundingBoxSize()
+            -- BB 额外偏移（部分实体在图鉴数据中定义）
+            if entry.bb_x_extra then aw = aw + tonumber(entry.bb_x_extra) end
+            if entry.bb_y_extra then ay = ay + tonumber(entry.bb_y_extra) end
+            if aw > 0 and ay > 0 then
+                -- 先适配宽度，高度溢出时适配高度
+                local TARGET = size
+                local SCALE = TARGET / aw
+                if ay * SCALE >= TARGET then SCALE = TARGET / ay end
+                -- 图鉴内置 scale 倍数
+                if entry.scale then SCALE = SCALE * entry.scale end
+                -- 钳制（上限 0.5 同官方，下限 0.15 适配我们的小空间）
+                SCALE = math.max(0.15, math.min(0.5, SCALE))
+                anim:SetScale(SCALE)
+                -- 定位：官方公式复制（PopulateInfoPanel L1707-1757）
+                local render_w = math.min(aw * SCALE, TARGET)
+                local render_h = math.min(ay * SCALE, TARGET)
+                local posx = x2 * SCALE - render_w / 2
+                if entry.animoffsetx then posx = posx + entry.animoffsetx end
+                local posy = y2 * SCALE - render_h / 2
+                if entry.animoffsety then posy = posy + entry.animoffsety end
+                posy = posy * (entry.scale or 1)
+                anim:SetPosition(posx, posy)
+            end
+            anim:SetClickable(false)
+        end)
+        return btn
+    end
+
+    -- 兜底：图鉴图集（极少数无 build/bank 的实体）
+    if entry.tex then
+        local atlas = GLOBAL.GetScrapbookIconAtlas and GLOBAL.GetScrapbookIconAtlas(entry.tex)
+        if not atlas then atlas = GLOBAL.GetInventoryItemAtlas(entry.tex) end
+        if atlas then
+            btn.image:SetTint(1, 1, 1, 1)
+            btn:SetTextures(atlas, entry.tex)
+        end
+    end
+    return btn
+end
+
 function ResolveIconAtlas(icon)
     local function try_one(name)
         if GLOBAL.GetScrapbookIconAtlas then
@@ -272,9 +402,33 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
     if disp_prefab then
         local img_name = disp_prefab .. ".tex"
         local atlas = GetInventoryItemAtlas(img_name)
+        -- 无库存图标时的回退链（优先用图鉴 tex 名）
+        if atlas == nil then
+            local entry = _GetScrapbookEntry(disp_prefab)
+            local tex_name = entry and entry.tex or img_name
+            if GLOBAL.GetScrapbookIconAtlas then
+                atlas = GLOBAL.GetScrapbookIconAtlas(tex_name)
+            end
+            if atlas == nil then
+                local ia = GLOBAL.GetInventoryItemAtlas(tex_name)
+                if ia then atlas = ia; img_name = tex_name end
+            end
+        end
         if atlas then
             local icon = slot.image:AddChild(Image(atlas, img_name))
             if icon then icon:SetSize(icon_size, icon_size) end
+        else
+            -- 无任何图标时显示名称首字母
+            local dispname = CN(disp_prefab) or disp_prefab
+            local fb = slot.image:AddChild(Text(NEWFONT, icon_size * 0.4))
+            if fb then
+                fb:SetString(dispname:sub(1, 1):upper())
+                fb:SetPosition(0, 0)
+                fb:SetColour(0.75, 0.7, 0.55, 1)
+                fb:SetHAlign(ANCHOR_MIDDLE)
+                fb:SetVAlign(ANCHOR_MIDDLE)
+                slot.image:SetTint(0.3, 0.28, 0.22, 0.6)
+            end
         end
     end
 
@@ -441,6 +595,207 @@ function MakeArrow(parent, x, y)
 end
 
 -- ============================
+-- 来源渲染 (SOURCES tab)
+-- ============================
+
+function RenderSources()
+    if WIT_CONTENT == nil then return end
+    WIT_CONTENT:KillAllChildren()
+
+    -- 扫描 WIT.entity_loot，找出包含当前物品的实体
+    local matched = {}
+    for ename, loots in pairs(WIT.entity_loot or {}) do
+        for _, l in ipairs(loots) do
+            if l.prefab == WIT_NAME then
+                table.insert(matched, { source = ename, loots = loots })
+                break
+            end
+        end
+    end
+
+    if #matched == 0 then
+        local t = WIT_CONTENT:AddChild(Text(NEWFONT, 24))
+        if t then t:SetString(WIT_TXT.SRC_NO_SOURCE); t:SetPosition(0, 10); t:SetColour(0.6, 0.55, 0.4, 1) end
+        return
+    end
+
+    -- 排序函数：目标物品优先，然后按概率降序
+    local function _SortLoots(loots, target)
+        local sorted = {}
+        local target_item = nil
+        for _, l in ipairs(loots) do
+            if l.prefab == target then target_item = l else table.insert(sorted, l) end
+        end
+        table.sort(sorted, function(a, b)
+            local ca, cb = a.chance or 1, b.chance or 1
+            if ca ~= cb then return ca > cb end
+            return (a.prefab or "") < (b.prefab or "")
+        end)
+        local result = {}
+        if target_item then table.insert(result, target_item) end
+        for _, v in ipairs(sorted) do table.insert(result, v) end
+        return result
+    end
+
+    local type_icons = {
+        drop   = { tex = "icon_damage.tex", tip = WIT_TXT.SRC_DROP },
+        pick   = { tex = "icon_action.tex", tip = WIT_TXT.SRC_PICK },
+        chop   = { tex = "icon_uses.tex",   tip = WIT_TXT.SRC_CHOP },
+        dig    = { tex = "icon_uses.tex",   tip = WIT_TXT.SRC_DIG },
+        hammer = { tex = "icon_uses.tex",   tip = WIT_TXT.SRC_HAMMER },
+        mine   = { tex = "icon_uses.tex",   tip = WIT_TXT.SRC_MINE },
+        trade  = { tex = "icon_action.tex", tip = WIT_TXT.SRC_TRADE },
+        trap   = { tex = "icon_damage.tex", tip = WIT_TXT.SRC_TRAP },
+    }
+
+    -- 分页
+    local PER_PAGE = 2
+    local total = #matched
+    local pages = math.max(1, math.ceil(total / PER_PAGE))
+    if WIT_PAGE > pages then WIT_PAGE = 1 end
+    if WIT_PAGE < 1 then WIT_PAGE = pages end
+    if WIT_PG_TEXT then WIT_PG_TEXT:SetString(WIT_PAGE .. " / " .. pages) end
+
+    local start_i = (WIT_PAGE - 1) * PER_PAGE + 1
+    local end_i = math.min(start_i + PER_PAGE - 1, total)
+
+    -- 布局常量（与其它页签卡片统一）
+    local CARD_H = 130
+    local CARD_W = 370
+    local SRC_SIZE = 86
+    local LOOT_SIZE = 52
+    local ITEMS_PER_ROW = 4
+
+    local start_y = 2  -- 与其它页签首张卡片顶部对齐
+    for idx = start_i, end_i do
+        local entry = matched[idx]
+        local sorted = _SortLoots(entry.loots, WIT_NAME)
+        local local_i = idx - start_i
+        local card_y = -local_i * 140 + start_y
+
+        -- 卡片背景（与其它页签一致）
+        local card_bg = WIT_CONTENT:AddChild(Image("images/global.xml", "square.tex"))
+        if card_bg then card_bg:SetSize(CARD_W, CARD_H); card_bg:SetTint(0.12, 0.10, 0.08, 0.6); card_bg:SetPosition(0, card_y) end
+
+        -- 来源实体图标（UIAnim 动态渲染，无框）
+        local src_widget = CreateEntityIconWidget(WIT_CONTENT, entry.source, 90, -129, card_y + 2)
+        if src_widget then
+            local en = CN(entry.source) or entry.source
+            local clean_name = en:match("^[%u%l]") and en:gsub("_", " "):gsub("(%a)([%w]*)", function(a,b) return a:upper()..b end) or en
+            src_widget:SetTooltip(clean_name)
+            src_widget.OnMouseButton = function(_, button, down)
+                if button == 0 and not down then
+                    BuildIndexes(); ClosePopup(); CreatePopup(entry.source, "SOURCE")
+                    return true
+                end
+            end
+        else
+            -- 彻底无数据时文字回退
+            local dispname = CN(entry.source) or entry.source
+            local clean_name = dispname:match("^[%u%l]") and dispname:gsub("_", " "):gsub("(%a)([%w]*)", function(a,b) return a:upper()..b end) or dispname
+            local ib = WIT_CONTENT:AddChild(ImageButton("images/hud.xml", "inv_slot.tex"))
+            if ib then
+                ib:SetScale(SRC_SIZE / 64, SRC_SIZE / 64)
+                ib:SetPosition(-125, card_y)
+                ib.image:SetTint(0.2, 0.18, 0.15, 0.5)
+                ib:SetTooltip(clean_name)
+                ib.OnMouseButton = function(_, button, down)
+                    if button == 0 and not down then
+                        BuildIndexes(); ClosePopup(); CreatePopup(entry.source, "SOURCE")
+                        return true
+                    end
+                end
+                local fb = ib.image:AddChild(Text(NEWFONT, SRC_SIZE * 0.38))
+                if fb then
+                    fb:SetString(dispname:sub(1, 1):upper())
+                    fb:SetPosition(0, 0)
+                    fb:SetColour(0.65, 0.58, 0.45, 1)
+                    fb:SetHAlign(ANCHOR_MIDDLE); fb:SetVAlign(ANCHOR_MIDDLE)
+                end
+            end
+        end
+
+        -- 交互类型图标（卡片的战利品区左上角）
+        local type_info = entry.loots[1] and entry.loots[1].type or nil
+        local type_icon_def = type_info and type_icons[type_info] or nil
+        if type_icon_def then
+            local ti_atlas = GLOBAL.GetScrapbookIconAtlas and GLOBAL.GetScrapbookIconAtlas(type_icon_def.tex)
+            if ti_atlas then
+                local ti = WIT_CONTENT:AddChild(Image(ti_atlas, type_icon_def.tex))
+                if ti then
+                    local icon_sz = 36
+                    ti:SetSize(icon_sz, icon_sz)
+                    ti:SetPosition(-46, card_y + CARD_H / 2 - 24)
+                    if type_icon_def.tip then ti:SetTooltip(type_icon_def.tip) end
+                end
+            end
+        end
+
+        -- 智能战利品文字（×1 隐藏，概率/数量智能显示）
+        local function _LootText(loot)
+            if loot.chance then
+                local s = tostring(math.floor(loot.chance * 100)) .. "%"
+                if loot.count and loot.count > 1 then s = "×" .. loot.count .. "  " .. s end
+                return s
+            end
+            if loot.count and loot.count > 1 then return "×" .. loot.count end
+            return nil
+        end
+
+        -- 战利品
+        local loot_y = card_y + (SRC_SIZE - LOOT_SIZE) / 2 - 19
+        local limit = ITEMS_PER_ROW
+        WIT_expanded_sources = WIT_expanded_sources or {}
+        local expanded = WIT_expanded_sources[entry.source]
+        if expanded then limit = #sorted end
+
+        -- 战利品渲染（展开时自动换行，每行最多 5 个）
+        local ROW_CAP = 10
+        local ROW_GAP = LOOT_SIZE + 28
+        local prod_x = -40
+        local row_y = loot_y
+        local col = 0
+        for i, loot in ipairs(sorted) do
+            if i > limit then break end
+            if expanded and col >= ROW_CAP then
+                col = 0; row_y = row_y - ROW_GAP; prod_x = -40
+            end
+            local hl = (loot.prefab == WIT_NAME)
+            MakeSlot(WIT_CONTENT, loot.prefab, prod_x, row_y, nil, hl, LOOT_SIZE, LOOT_SIZE)
+            local txt = _LootText(loot)
+            if txt then
+                local ct = WIT_CONTENT:AddChild(Text(NUMBERFONT, 20))
+                if ct then
+                    ct:SetString(txt)
+                    ct:SetPosition(prod_x, row_y - LOOT_SIZE / 2 - 10)
+                    ct:SetColour(0.6, 0.55, 0.4, 1)
+                end
+            end
+            prod_x = prod_x + LOOT_SIZE + 5
+            col = col + 1
+        end
+
+        -- 展开/折叠按钮（与最后一项同行，左移 4px）
+        local overflow = #sorted - ITEMS_PER_ROW
+        if overflow > 0 then
+            local btn_more = WIT_CONTENT:AddChild(ImageButton("images/crafting_menu.xml", "ingredient_craft.tex"))
+            if btn_more then
+                local bx = prod_x - 4
+                local by = row_y - 14
+                if expanded then bx = bx - 14; by = by - 6 end
+                btn_more:SetPosition(bx, by)
+                btn_more:SetScale(0.35)
+                if expanded then btn_more.image:SetRotation(45) end
+                btn_more:SetOnClick(function()
+                    WIT_expanded_sources[entry.source] = not expanded
+                    RenderSources()
+                end)
+            end
+        end
+    end
+end
+
+-- ============================
 -- 卡片渲染 (from wit_render.lua)
 -- ============================
 
@@ -455,6 +810,68 @@ function RenderCardCrafting(r, card_y)
     end
     MakeArrow(WIT_CONTENT, start_x + ing_count * 58 - 10, card_y)
     MakeSlot(WIT_CONTENT, r.product or r.name, start_x + ing_count * 58 + 32, card_y, nil, false)
+
+    -- 制作站/角色/专属标识（产品图标右侧，小图标）
+    local extra_icons = {}
+    if r.builder_tag then
+        -- 角色专属标记：使用角色对应 prototyper 图标或通用标记
+        local char_map = { pyromaniac="willow", masterchef="warly", bookbuilder="wickerbottom",
+            werehuman="woodie", valkyrie="wigfrid", ghostlyfriend="wendy", plantkin="wormwood",
+            clockmaker="wanda", shadowmagic="maxwell", handyperson="winona",
+            portableengineer="winona", pebblemaker="walter", pinetreepioneer="walter",
+            spiderwhisperer="webber" }
+        local char_prefab = char_map[r.builder_tag] or r.builder_tag
+        local ca = GetInventoryItemAtlas(char_prefab .. ".tex")
+        if ca then table.insert(extra_icons, { atlas = ca, tex = char_prefab .. ".tex", tip = r.builder_tag }) end
+    end
+    if r.level then
+        local tech_map = {
+            SCIENCE={{1, "researchlab"}, {2, "researchlab2"}, {3, "researchlab2"}},
+            MAGIC={{2, "researchlab4"}, {3, "researchlab4"}},
+            ANCIENT={{2, "researchlab3"}, {3, "researchlab3"}, {4, "researchlab3"}},
+            CELESTIAL={{1, "moon_altar"}, {3, "moon_altar"}},
+            SEAFARING={{1, "seafaring_prototyper"}, {2, "seafaring_prototyper"}},
+            SCULPTING={{1, "sculptingtable"}, {2, "sculptingtable"}},
+            SHADOW={{3, "shadow_forge"}},
+        }
+        for tech, levels in pairs(r.level) do
+            local defs = tech_map[tech]
+            if defs then
+                for _, pair in ipairs(defs) do
+                    if pair[1] == r.level[tech] then
+                        local ta = GetInventoryItemAtlas(pair[2] .. ".tex")
+                        if ta then table.insert(extra_icons, { atlas = ta, tex = pair[2] .. ".tex", tip = pair[2] }) end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    if r.nounlock then
+        local ba = GetInventoryItemAtlas("blueprint.tex")
+        if ba then table.insert(extra_icons, { atlas = ba, tex = "blueprint.tex", tip = "Blueprint" }) end
+    end
+    if r.is_deconstruction_recipe then
+        local da = "images/crafting_menu.xml"
+        if da then table.insert(extra_icons, { atlas = da, tex = "ingredient_craft.tex", tip = WIT_TXT.SRC_DECONSTRUCT }) end
+    end
+    if #extra_icons > 0 then
+        local ex = start_x + ing_count * 58 + 68
+        for _, ei in ipairs(extra_icons) do
+            local eimg = WIT_CONTENT:AddChild(Image(ei.atlas, ei.tex))
+            if eimg then
+                eimg:SetSize(20, 20); eimg:SetPosition(ex, card_y + 30)
+                eimg:SetTooltip(CN(ei.tip) or ei.tip)
+                local prefab = ei.tip
+                eimg.OnMouseButton = function(_, button, down)
+                    if not down and button == 0 then
+                        BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
+                    end
+                end
+                ex = ex + 24
+            end
+        end
+    end
 
     local state = GetRecipeBuildState(r.name)
     if state ~= nil then
@@ -546,17 +963,43 @@ end
 
 function HasData(name, mode)
     if mode == "SOURCE" then
-        return (WIT.by_product[name] and #WIT.by_product[name] > 0) or (WIT.cook_foods[name] ~= nil)
+        local has_recipe = WIT.by_product[name] and (function()
+            for _, r in ipairs(WIT.by_product[name]) do if not r.is_deconstruction_recipe then return true end end
+            return false
+        end)()
+        return has_recipe or (WIT.cook_foods[name] ~= nil)
     else
         local has_mat = WIT.by_material[name] and #WIT.by_material[name] > 0
         local has_cook = WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0
-        return has_mat or has_cook
+        local has_decon = WIT.by_product[name] and _HasDecon(WIT.by_product[name])
+        return has_mat or has_cook or has_decon
     end
 end
 
 function GetCurrentRecipes()
     if WIT_CUR_CAT == "CRAFTING" then
-        local recipes = (WIT_MODE == "SOURCE") and (WIT.by_product[WIT_NAME] or {}) or (WIT.by_material[WIT_NAME] or {})
+        local recipes
+        if WIT_MODE == "SOURCE" then
+            -- R 模式：排除拆解配方（拆解属于用途，不是来源）
+            recipes = {}
+            local src = WIT.by_product[WIT_NAME]
+            if src then
+                for _, r in ipairs(src) do
+                    if not r.is_deconstruction_recipe then table.insert(recipes, r) end
+                end
+            end
+        else
+            -- U 模式：材料配方 + 拆解配方
+            recipes = {}
+            local src = WIT.by_material[WIT_NAME]
+            if src then for _, r in ipairs(src) do table.insert(recipes, r) end end
+            local decon = WIT.by_product[WIT_NAME]
+            if decon then
+                for _, r in ipairs(decon) do
+                    if r.is_deconstruction_recipe then table.insert(recipes, r) end
+                end
+            end
+        end
         return SortRecipesByBuildable(recipes)
     elseif WIT_CUR_CAT == "COOKING" then
         local recipes = {}
@@ -660,6 +1103,8 @@ function SelectCategory(cat, reset_page)
         RenderCards(recipes, 85, 90, RenderCardCrafting)
     elseif cat == "COOKING" then
         RenderCards(recipes, 85, 90, RenderCardCooking)
+    elseif cat == "SOURCES" then
+        RenderSources()
     elseif cat == "INFO" then
         RenderItemInfo()
     end
@@ -669,6 +1114,11 @@ end
 -- 弹窗创建 (from wit_popup.lua)
 -- ============================
 
+local function _HasDecon(recipes)
+    for _, r in ipairs(recipes or {}) do if r.is_deconstruction_recipe then return true end end
+    return false
+end
+
 function CreatePopup(name, mode)
     BuildCookContext()
     WIT_NAME = name; WIT_MODE = mode; WIT_PAGE = 1
@@ -676,13 +1126,28 @@ function CreatePopup(name, mode)
 
     local avail_cats = {}
     if mode == "SOURCE" then
-        if WIT.by_product[name] and #WIT.by_product[name] > 0 then table.insert(avail_cats, "CRAFTING") end
+        if WIT.by_product[name] and (function()
+            for _, r in ipairs(WIT.by_product[name]) do if not r.is_deconstruction_recipe then return true end end
+            return false
+        end)() then table.insert(avail_cats, "CRAFTING") end
         if WIT.cook_foods[name] then table.insert(avail_cats, "COOKING") end
     else
-        if WIT.by_material[name] and #WIT.by_material[name] > 0 then table.insert(avail_cats, "CRAFTING") end
+        if (WIT.by_material[name] and #WIT.by_material[name] > 0) or (WIT.by_product[name] and _HasDecon(WIT.by_product[name])) then table.insert(avail_cats, "CRAFTING") end
         if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOKING") end
     end
     table.insert(avail_cats, "INFO")
+    -- R 模式下添加 SOURCES（获取来源）标签
+    if mode == "SOURCE" then
+        for ename, loots in pairs(WIT.entity_loot or {}) do
+            for _, l in ipairs(loots) do
+                if l.prefab == name then
+                    table.insert(avail_cats, "SOURCES")
+                    break
+                end
+            end
+            if avail_cats[#avail_cats] == "SOURCES" then break end
+        end
+    end
     if #avail_cats == 0 then return end
     WIT_AVAIL_CATS = avail_cats
 
@@ -722,16 +1187,30 @@ function CreatePopup(name, mode)
     local bottom_edge = WIT_POPUP:AddChild(Image(CRAFTING_ATLAS, "bottom.tex"))
     if bottom_edge then bottom_edge:SetPosition(0, -248); bottom_edge:ScaleToSize(frame_w + 70, 38) end
 
-    local icon_atlas = GetInventoryItemAtlas(name .. ".tex")
     local title_y = 196
     local title_bg = WIT_POPUP:AddChild(Image(CRAFTING_ATLAS, "slot_bg.tex"))
     if title_bg then title_bg:SetPosition(-150, title_y); title_bg:SetScale(0.5) end
-    local title_frame = WIT_POPUP:AddChild(ImageButton(CRAFTING_ATLAS, "slot_frame.tex", "slot_frame_highlight.tex"))
-    if title_frame then title_frame:SetPosition(-150, title_y); title_frame:Disable(); title_frame:SetScale(0.5) end
-    if icon_atlas then
-        local title_icon = WIT_POPUP:AddChild(Image(icon_atlas, name .. ".tex"))
-        if title_icon then title_icon:ScaleToSize(48, 48); title_icon:SetPosition(-150, title_y) end
-    end
+    -- 标题图标（与内容区 MakeSlot 同款交互：左键→来源 / 右键→用途）
+    local icon_atlas = GetInventoryItemAtlas(name .. ".tex")
+    local title_slot = WIT_POPUP:AddChild(ImageButton(icon_atlas or CRAFTING_ATLAS, (icon_atlas and name .. ".tex") or "slot_frame.tex"))
+     if title_slot then
+         title_slot:SetPosition(-150, title_y)
+         title_slot:ForceImageSize(48, 48)
+         title_slot.image:SetTint(1, 1, 1, 1)
+         title_slot:SetTooltip(dispname)
+         local cur_name = WIT_NAME
+         title_slot:SetOnClick(function()
+             BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "SOURCE")
+         end)
+         local orig_oc = title_slot.OnControl
+         title_slot.OnControl = function(btn, control, down)
+             if down and control == CONTROL_SECONDARY then
+                 BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "USE")
+                 return true
+             end
+             return orig_oc(btn, control, down)
+         end
+     end
 
     local dispname = CN(name) or name
     local title_x = 36    -- 右移 40px + 10px = 50px（相对原 -14）
@@ -915,7 +1394,7 @@ function CreatePopup(name, mode)
     for i, cat in ipairs(WIT_AVAIL_CATS) do
         local tb = WIT_POPUP:AddChild(TextButton())
         if tb then
-            local label = cat == "CRAFTING" and WIT_TXT.TAB_CRAFTING or (cat == "COOKING" and WIT_TXT.TAB_COOKING or WIT_TXT.TAB_INFO)
+            local label = (cat == "CRAFTING" and WIT_TXT.TAB_CRAFTING) or (cat == "COOKING" and WIT_TXT.TAB_COOKING) or (cat == "SOURCES" and WIT_TXT.TAB_SOURCES) or WIT_TXT.TAB_INFO
             tb:SetText(label); tb:SetTextSize(26)
             tb:SetPosition((i - (#WIT_AVAIL_CATS + 1) / 2) * 100, tab_y)
             tb:SetOnClick(function() SelectCategory(cat, true) end)
