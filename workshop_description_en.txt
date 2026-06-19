@@ -29,14 +29,16 @@ Press R or U again (with nothing under the cursor) to close. All hotkeys can be 
 [h1]Changelog[/h1]
 
 [list]
-[*] [b]v1.2.0[/b]
+[*] [b]v1.3.0[/b]
 [list]
-[*] Interactive key rebinding: click a key button in the in-game config screen, press any key to rebind instantly (Esc to cancel)
-[*] Popup position setting: choose Left / Right / Auto (follows crafting menu)
-[*] Cooking ingredient tags shown in the info panel (e.g., "Meat 1.0 · Monster 0.5")
-[*] Full English localization: item names, cooking tags, config UI all display correctly
+[*] [b]New "Sources" Tab!</b> — Press R on any item to see a new Sources tab showing how to obtain it from the world: mob drops, mining, chopping, picking, digging, hammering. Source entities are rendered as 3D models (just like the scrapbook detail view), not flat icons
+[*] [b]Deconstruction Recipes</b> — Press U on an item that can be deconstructed (e.g. Night Sword), and the crafting tab now shows what the Deconstruction Staff would yield. Deconstruction cards have a special indicator icon
+[*] [b]Crafting Station Icons</b> — Each recipe card now shows small icons telling you what station it needs (Science Machine, Shadow Manipulator, etc.), whether it's character-exclusive, or requires a blueprint
+[*] [b]Smarter Loot Display</b> — "×1" is hidden to reduce clutter; probability drops show percentages; overflowing loot tables get an expand/collapse button
+[*] [b]Source Type Icons</b> — Each source card has a small icon showing how to obtain it: crossed swords for combat drops, hand for picking, tool for mining/chopping
+[*] [b]Better Navigation</b> — Click the title item icon: left click = source lookup, right click = usage lookup. No more getting stuck with nowhere to go back
 [/list]
-[*] [b]v1.1.0[/b]
+[*] [b]v1.2.0[/b]
 [list]
 [*] New Info tab — full stats panel for every item
 [*] Fixed tool efficiency, repair info, sewing icon issues
@@ -51,7 +53,6 @@ This mod is actively developed. More features coming soon.
 [b]Planned:[/b]
 [list]
 [*] Full search UI — Browseable grid of all items with search
-[*] Drop & spawn sources — Mob drops, foraging, natural generation
 [*] Recipe bookmarks — Mark favorites for quick access
 [*] Better compatibility with other mods' recipes
 [/list]

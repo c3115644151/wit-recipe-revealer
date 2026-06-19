@@ -19,7 +19,8 @@ WIT_INGREDIENT_PREFAB_MAP = { egg = "bird_egg" }
 -- ============================
 
 -- 低阶迭代器：遍历主背包 + 溢出背包，对每个物品执行 callback
--- callback(item, container_entity) 返回 true 则提前终止
+-- callback(item, container_entity, slot) 返回 true 则提前终止
+-- slot 是容器内的槽位号，可直接用于 MoveItemFromAllOfSlot
 local function _IterateInventory(callback)
     if ThePlayer == nil or ThePlayer.replica == nil then return end
     local inv = ThePlayer.replica.inventory
@@ -29,15 +30,15 @@ local function _IterateInventory(callback)
     if classified == nil or classified.GetItems == nil then return end
 
     local items = classified:GetItems()
-    for _, item in pairs(items) do
-        if callback(item, ThePlayer) then return end
+    for slot, item in pairs(items) do
+        if callback(item, ThePlayer, slot) then return end
     end
 
     local overflow = inv:GetOverflowContainer()
     if overflow ~= nil and overflow.classified ~= nil and overflow.classified.GetItems ~= nil then
         local oitems = overflow.classified:GetItems()
-        for _, item in pairs(oitems) do
-            if callback(item, overflow.inst) then return end
+        for slot, item in pairs(oitems) do
+            if callback(item, overflow.inst, slot) then return end
         end
     end
 end
@@ -69,16 +70,68 @@ function GetPlayerIngredientList()
     return list
 end
 
--- 在库存中查找某物品的槽位
+-- 在库存中查找某物品的槽位和所属容器
 function FindItemSlotInInventory(prefab)
     local found_slot, found_owner = nil, nil
-    _IterateInventory(function(item, owner)
+    _IterateInventory(function(item, owner, slot)
         if item.prefab == prefab then
+            found_slot = slot
             found_owner = owner
             return true  -- 提前终止
         end
     end)
     return found_slot, found_owner
+end
+
+-- 统一库存引用查询：返回 { slot, item, owner, source } 或 nil
+-- source 为 "inventory"（主背包）或 "overflow"（溢出背包）
+-- 已处理 WIT_COOKING_ALIASES 回退（传入 cooked 名自动查找原始名）
+local function _IterateInventoryRefs(callback)
+    if ThePlayer == nil or ThePlayer.replica == nil then return end
+    local inv = ThePlayer.replica.inventory
+    if inv == nil then return end
+
+    local classified = inv.classified
+    if classified == nil or classified.GetItems == nil then return end
+
+    local items = classified:GetItems()
+    for slot, item in pairs(items) do
+        if callback({ slot = slot, item = item, owner = ThePlayer, source = "inventory" }) then
+            return
+        end
+    end
+
+    local overflow = inv:GetOverflowContainer()
+    if overflow ~= nil and overflow.classified ~= nil and overflow.classified.GetItems ~= nil then
+        local oitems = overflow.classified:GetItems()
+        for slot, item in pairs(oitems) do
+            if callback({ slot = slot, item = item, owner = overflow.inst, source = "overflow" }) then
+                return
+            end
+        end
+    end
+end
+
+function FindInventoryRefByPrefab(prefab)
+    local reverse_aliases = {}
+    for k, v in pairs(WIT_COOKING_ALIASES) do
+        reverse_aliases[v] = k
+    end
+
+    local search_list = { prefab }
+    local alias = reverse_aliases[prefab]
+    if alias then table.insert(search_list, alias) end
+
+    local found = nil
+    _IterateInventoryRefs(function(ref)
+        for _, name in ipairs(search_list) do
+            if ref.item and ref.item.prefab == name then
+                found = ref
+                return true
+            end
+        end
+    end)
+    return found
 end
 
 -- ============================
@@ -198,7 +251,7 @@ local FALLBACK_CARD_DEF = {
     ["vegstinger"] = {ingredients = {{"tomato",1}, {"asparagus",1}, {"carrot",1}, {"ice",1}} },
     ["waffles"] = {ingredients = {{"butter",1}, {"egg",1}, {"berries",2}} },
     ["watermelonicle"] = {ingredients = {{"watermelon",1}, {"ice",1}, {"twigs",1}, {"berries",1}} },
-    ["wetgoop"] = {ingredients = {{"twigs",4}} },
+    ["wetgoop"] = {ingredients = {{"monstermeat",1}, {"twigs",3}} },
 }
 
 function GenerateCardDef(recipe, cooking)
@@ -380,6 +433,24 @@ function BuildIndexes()
                 end
             end
         end
+
+        -- 潮湿黏糊：cookpot 的"无匹配兜底"产物
+        -- cooking.recipes 中没有 wetgoop 的 recipe 定义（cookpot 自己在 cookfn 中处理），
+        -- 因此不会被上面的遍历自动收录。手动注入 frecipe-like 对象，
+        -- 让它进入 WIT.cook_foods 与食材反查表。
+        local wetgoop_def = FALLBACK_CARD_DEF["wetgoop"]
+        if wetgoop_def and wetgoop_def.ingredients and not WIT.cook_foods["wetgoop"] then
+            local wetgoop_frecipe = { name = "wetgoop", card_def = wetgoop_def }
+            WIT.cook_foods["wetgoop"] = wetgoop_frecipe
+            for _, ci in ipairs(wetgoop_def.ingredients) do
+                WIT.cook_by_ingredient[ci[1]] = WIT.cook_by_ingredient[ci[1]] or {}
+                local exists = false
+                for _, r in ipairs(WIT.cook_by_ingredient[ci[1]]) do
+                    if r.name == "wetgoop" then exists = true; break end
+                end
+                if not exists then table.insert(WIT.cook_by_ingredient[ci[1]], wetgoop_frecipe) end
+            end
+        end
     end
     BuildSourceIndexes()
 end
@@ -416,6 +487,24 @@ function BuildSourceIndexes()
     local scrap_data_ok, scrap_data = pcall(GLOBAL.require, "screens/redux/scrapbookdata")
     if not (scrap_data_ok and type(scrap_data) == "table") then return end
 
+    -- 通用规则：构建"该实体作为 cooking station 时能产出的全部菜肴"集合
+    -- 用于过滤 deps 中的反向依赖（HAMMER/cooker 类容器实体的 deps 通常是"在自己内部做的东西"，
+    -- 不是"被自己锤击后掉落的东西"，例如 cookpot 的 deps 是它能做的菜肴而不是它掉落的材料）
+    local cooking = _GetCooking()
+    local cooker_outputs = {}  -- cooker_type -> {food1, food2, ...}
+    if cooking and cooking.recipes then
+        for cooker_type, recipes in pairs(cooking.recipes) do
+            if type(recipes) == "table" then
+                for fname, _ in pairs(recipes) do
+                    if type(fname) == "string" then
+                        cooker_outputs[cooker_type] = cooker_outputs[cooker_type] or {}
+                        table.insert(cooker_outputs[cooker_type], fname)
+                    end
+                end
+            end
+        end
+    end
+
     for _, entry in pairs(scrap_data) do
         if type(entry) == "table" and entry.prefab and entry.tex then
             local prefab = entry.prefab
@@ -424,22 +513,49 @@ function BuildSourceIndexes()
             local lt = GLOBAL.LootTables and GLOBAL.LootTables[prefab]
             if lt and #lt > 0 then
                 local src_type = _ResolveSourceType(entry)
-                local loots = {}
+                -- 合并同一 prefab 的多次掉落（DST 用重复条目表示数量）
+                local merged = {}
                 for _, v in ipairs(lt) do
                     local prod, chance = v[1], v[2]
                     if prod and chance and chance > 0 then
-                        table.insert(loots, { prefab = prod, count = 1, chance = chance, type = src_type })
+                        if not merged[prod] then merged[prod] = {} end
+                        table.insert(merged[prod], chance)
+                    end
+                end
+                local loots = {}
+                for prod, chances in pairs(merged) do
+                    local guaranteed = 0
+                    for _, c in ipairs(chances) do
+                        if c >= 1.0 then guaranteed = guaranteed + 1
+                        else table.insert(loots, { prefab = prod, count = 1, chance = c, type = src_type }) end
+                    end
+                    if guaranteed > 0 then
+                        table.insert(loots, { prefab = prod, count = guaranteed, chance = 1.0, type = src_type })
                     end
                 end
                 if #loots > 0 then WIT.entity_loot[prefab] = loots end
             elseif entry.deps and type(entry.deps) == "table" and #entry.deps > 0 and _IsSourceEntity(entry) then
                 -- 无 LootTables 时使用 deps，合并重复的固定掉落
+                -- 通用规则：若该实体是某个 cooking station 类型（HAMMER 容器类），
+                -- 过滤掉"作为该 station 产物"的反向依赖，避免把"内部能做的菜肴"当作"锤击掉落"
                 local src_type = _ResolveSourceType(entry)
-                local merged = {}
-                for _, dep in ipairs(entry.deps) do
-                    if type(dep) == "string" then
-                        merged[dep] = (merged[dep] or 0) + 1
+                local filtered_deps = {}
+                if src_type == "hammer" and cooker_outputs[prefab] then
+                    local outputs = {}
+                    for _, f in ipairs(cooker_outputs[prefab]) do outputs[f] = true end
+                    for _, dep in ipairs(entry.deps) do
+                        if type(dep) == "string" and not outputs[dep] then
+                            table.insert(filtered_deps, dep)
+                        end
                     end
+                else
+                    for _, dep in ipairs(entry.deps) do
+                        if type(dep) == "string" then table.insert(filtered_deps, dep) end
+                    end
+                end
+                local merged = {}
+                for _, dep in ipairs(filtered_deps) do
+                    merged[dep] = (merged[dep] or 0) + 1
                 end
                 local loots = {}
                 for dep, count in pairs(merged) do
@@ -523,7 +639,8 @@ local HARDCODED_CONDITIONS = {
     ["seafoodgumbo"] = {{"fish",">2.0"}},
     ["talleggs"] = {{"tallbirdegg","+1"}, {"veggie","≥1.0"}},
     ["veggieomlet"] = {{"egg","≥1.0"}, {"veggie","≥1.0"}},
-    ["wetgoop"] = {{}},
+    -- wetgoop 不在此处占位：它本身无 cooking 配方（不是 cooking.lua 中的产物），
+    -- 玩家按 U 查询时会走 turfcraftingstation 的制作路径，不依赖此处的硬编码
     ["dustmeringue"] = {{"refined_dust","+1"}},
     ["shroombait"] = {{"moon_cap","≥2"}, {"monstermeat","+1"}},
     -- 沃利便携锅专属
@@ -871,22 +988,12 @@ function AutoFillCookPot(view)
     local classified = ThePlayer.replica.inventory and ThePlayer.replica.inventory.classified
     if classified == nil then return end
 
-    -- Create a reverse alias map to find original prefabs
-    local reverse_aliases = {}
-    for k, v in pairs(WIT_COOKING_ALIASES) do
-        reverse_aliases[v] = k
-    end
-
+    -- 为所有需要搬运的食材统一查找库存引用（已包含 alias 回退）
     for _, prefab in ipairs(view.slots) do
         if prefab ~= nil then
-            -- The slot might be a resolved name (meat_cooked). Try to find either original or resolved.
-            local search_prefab = reverse_aliases[prefab] or prefab
-            local slot, owner = FindItemSlotInInventory(search_prefab)
-            if slot == nil and search_prefab ~= prefab then
-                slot, owner = FindItemSlotInInventory(prefab)
-            end
-            if slot ~= nil and owner ~= nil then
-                classified:MoveItemFromAllOfSlot(slot, pot)
+            local ref = FindInventoryRefByPrefab(prefab)
+            if ref and ref.slot ~= nil then
+                classified:MoveItemFromAllOfSlot(ref.slot, pot)
             end
         end
     end

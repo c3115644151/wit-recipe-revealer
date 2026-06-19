@@ -88,53 +88,44 @@ function CreateEntityIconWidget(parent, prefab, size, pos_x, pos_y)
 
     -- 实体 → UIAnim（3D 模型动态渲染，完全无框）
     if entry.build and entry.bank then
-        pcall(function()
-            local anim = btn:AddChild(UIAnim())
-            if anim == nil then return end
-            local s = anim:GetAnimState()
-            if s == nil then return end
-            s:SetBuild(entry.build)
-            s:SetBank(entry.bank)
-            if entry.anim and #entry.anim > 0 then
-                s:SetPercent(entry.anim, 0.5)
-            end
-            -- 官方图鉴通用隐藏（防多余符号/错误渲染，如晾肉架的红色残留）
-            s:Hide("snow")
-            s:Hide("mouseover")
-            if entry.hide then
-                for _, h in ipairs(entry.hide) do s:Hide(h) end
-            end
-            if entry.hidesymbol then
-                for _, h in ipairs(entry.hidesymbol) do s:HideSymbol(h) end
-            end
-            -- 官方图鉴渲染逻辑：完整复刻（PopulateInfoPanel ~1687-1757）
-            local x1, y1, x2, y2 = s:GetVisualBB()
-            local aw, ay = anim:GetBoundingBoxSize()
-            -- BB 额外偏移（部分实体在图鉴数据中定义）
-            if entry.bb_x_extra then aw = aw + tonumber(entry.bb_x_extra) end
-            if entry.bb_y_extra then ay = ay + tonumber(entry.bb_y_extra) end
-            if aw > 0 and ay > 0 then
-                -- 先适配宽度，高度溢出时适配高度
-                local TARGET = size
-                local SCALE = TARGET / aw
-                if ay * SCALE >= TARGET then SCALE = TARGET / ay end
-                -- 图鉴内置 scale 倍数
-                if entry.scale then SCALE = SCALE * entry.scale end
-                -- 钳制（上限 0.5 同官方，下限 0.15 适配我们的小空间）
-                SCALE = math.max(0.15, math.min(0.5, SCALE))
-                anim:SetScale(SCALE)
-                -- 定位：官方公式复制（PopulateInfoPanel L1707-1757）
-                local render_w = math.min(aw * SCALE, TARGET)
-                local render_h = math.min(ay * SCALE, TARGET)
-                local posx = x2 * SCALE - render_w / 2
-                if entry.animoffsetx then posx = posx + entry.animoffsetx end
-                local posy = y2 * SCALE - render_h / 2
-                if entry.animoffsety then posy = posy + entry.animoffsety end
-                posy = posy * (entry.scale or 1)
-                anim:SetPosition(posx, posy)
-            end
+        local anim = btn:AddChild(UIAnim())
+        if anim then
+            -- 默认兜底比例（巨兽 1.25x）
+            anim:SetScale(entry.type == "giant" and 0.1 or 0.08)
+            anim:SetPosition(0, 0)
+            pcall(function()
+                local s = anim:GetAnimState()
+                if s == nil then return end
+                s:SetBuild(entry.build)
+                s:SetBank(entry.bank)
+                if entry.anim and #entry.anim > 0 then
+                    s:SetPercent(entry.anim, 0.5)
+                end
+                -- 官方图鉴通用隐藏（防多余符号/错误渲染，如晾肉架的红色残留）
+                s:Hide("snow")
+                s:Hide("mouseover")
+                if entry.hide then
+                    for _, h in ipairs(entry.hide) do s:Hide(h) end
+                end
+                if entry.hidesymbol then
+                    for _, h in ipairs(entry.hidesymbol) do s:HideSymbol(h) end
+                end
+                -- 用 VisualBB 计算等比缩放，使所有实体视觉大小统一
+                local x1, y1, x2, y2 = s:GetVisualBB()
+                if x1 and x2 and y1 and y2 then
+                    local aw = x2 - x1
+                    local ay = y2 - y1
+                    if aw > 0 and ay > 0 then
+                        local TARGET = size
+                        local SCALE = math.min(TARGET * 1.4 / aw, TARGET * 1.4 / ay)
+                        if entry.type == "giant" then SCALE = SCALE * 1.25 end
+                        SCALE = math.max(0.04, math.min(0.6, SCALE))
+                        anim:SetScale(SCALE)
+                    end
+                end
+            end)
             anim:SetClickable(false)
-        end)
+        end
         return btn
     end
 
@@ -188,6 +179,7 @@ end
 
 function ClosePopup()
     if WIT_POPUP ~= nil then WIT_POPUP:Kill(); WIT_POPUP = nil end
+    WIT_expanded_sources = {}  -- 关UI时重置展开
     WIT_NAME = nil; WIT_MODE = nil; WIT_CUR_CAT = nil; WIT_PAGE = 1
     WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
     WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
@@ -267,7 +259,12 @@ function SortCookingByAvailable(recipes)
     if #recipes == 0 then return recipes end
     local prefablist = GetPlayerIngredientList()
     if prefablist == nil or #prefablist == 0 then
-        table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
+        table.sort(recipes, function(a, b)
+            -- 潮湿黏糊（兜底失败品）始终排最末
+            if a.name == "wetgoop" then return false end
+            if b.name == "wetgoop" then return true end
+            return (a.priority or 0) > (b.priority or 0)
+        end)
         return recipes
     end
     local cooking = GLOBAL.require("cooking")
@@ -678,7 +675,7 @@ function RenderSources()
         if card_bg then card_bg:SetSize(CARD_W, CARD_H); card_bg:SetTint(0.12, 0.10, 0.08, 0.6); card_bg:SetPosition(0, card_y) end
 
         -- 来源实体图标（UIAnim 动态渲染，无框）
-        local src_widget = CreateEntityIconWidget(WIT_CONTENT, entry.source, 90, -129, card_y + 2)
+        local src_widget = CreateEntityIconWidget(WIT_CONTENT, entry.source, SRC_SIZE, -129, card_y - 43)
         if src_widget then
             local en = CN(entry.source) or entry.source
             local clean_name = en:match("^[%u%l]") and en:gsub("_", " "):gsub("(%a)([%w]*)", function(a,b) return a:upper()..b end) or en
@@ -696,7 +693,7 @@ function RenderSources()
             local ib = WIT_CONTENT:AddChild(ImageButton("images/hud.xml", "inv_slot.tex"))
             if ib then
                 ib:SetScale(SRC_SIZE / 64, SRC_SIZE / 64)
-                ib:SetPosition(-125, card_y)
+                ib:SetPosition(-125, card_y - 45)
                 ib.image:SetTint(0.2, 0.18, 0.15, 0.5)
                 ib:SetTooltip(clean_name)
                 ib.OnMouseButton = function(_, button, down)
@@ -733,17 +730,19 @@ function RenderSources()
 
         -- 智能战利品文字（×1 隐藏，概率/数量智能显示）
         local function _LootText(loot)
-            if loot.chance then
-                local s = tostring(math.floor(loot.chance * 100)) .. "%"
-                if loot.count and loot.count > 1 then s = "×" .. loot.count .. "  " .. s end
-                return s
+            if loot.chance and loot.chance < 1.0 then
+                -- 概率掉落：只有数量>1时显示数量，否则仅显示百分比
+                local pct = tostring(math.floor(loot.chance * 100)) .. "%"
+                if loot.count and loot.count > 1 then return tostring(loot.count) .. "  " .. pct end
+                return pct
             end
-            if loot.count and loot.count > 1 then return "×" .. loot.count end
+            -- 必掉：始终显示数量
+            if loot.count then return tostring(loot.count) end
             return nil
         end
 
         -- 战利品
-        local loot_y = card_y + (SRC_SIZE - LOOT_SIZE) / 2 - 19
+        local loot_y = card_y + (SRC_SIZE - LOOT_SIZE) / 2 - 18
         local limit = ITEMS_PER_ROW
         WIT_expanded_sources = WIT_expanded_sources or {}
         local expanded = WIT_expanded_sources[entry.source]
@@ -767,7 +766,7 @@ function RenderSources()
                 local ct = WIT_CONTENT:AddChild(Text(NUMBERFONT, 20))
                 if ct then
                     ct:SetString(txt)
-                    ct:SetPosition(prod_x, row_y - LOOT_SIZE / 2 - 10)
+                    ct:SetPosition(prod_x, row_y - LOOT_SIZE / 2 - 8)
                     ct:SetColour(0.6, 0.55, 0.4, 1)
                 end
             end
@@ -803,13 +802,25 @@ function RenderCardCrafting(r, card_y)
     local ings = r.ingredients or {}
     local ing_count = math.min(#ings, 5)
     local start_x = -140
-    for ii = 1, ing_count do
-        local ing = ings[ii]
-        local hl = (ing.type == WIT_NAME)
-        MakeSlot(WIT_CONTENT, ing.type, start_x + (ii - 1) * 58, card_y, ing.amount, hl)
+    if r.is_deconstruction_recipe then
+        -- 拆解配方：一生多（物品 → 拆解产出物），间距与正常配方一致
+        local gap = 48  -- 元素间间距（与正常配方中 ing → arrow 间距一致）
+        MakeSlot(WIT_CONTENT, r.product or r.name, start_x, card_y, nil, false)
+        MakeArrow(WIT_CONTENT, start_x + gap, card_y)
+        for ii = 1, ing_count do
+            local ing = ings[ii]
+            MakeSlot(WIT_CONTENT, ing.type, start_x + gap * 2 + (ii - 1) * 58, card_y, ing.amount, false)
+        end
+    else
+        -- 正常合成配方：多合一（材料 → 产物）
+        for ii = 1, ing_count do
+            local ing = ings[ii]
+            local hl = (ing.type == WIT_NAME)
+            MakeSlot(WIT_CONTENT, ing.type, start_x + (ii - 1) * 58, card_y, ing.amount, hl)
+        end
+        MakeArrow(WIT_CONTENT, start_x + ing_count * 58 - 10, card_y)
+        MakeSlot(WIT_CONTENT, r.product or r.name, start_x + ing_count * 58 + 32, card_y, nil, false)
     end
-    MakeArrow(WIT_CONTENT, start_x + ing_count * 58 - 10, card_y)
-    MakeSlot(WIT_CONTENT, r.product or r.name, start_x + ing_count * 58 + 32, card_y, nil, false)
 
     -- 制作站/角色/专属标识（产品图标右侧，小图标）
     local extra_icons = {}
@@ -825,57 +836,207 @@ function RenderCardCrafting(r, card_y)
         if ca then table.insert(extra_icons, { atlas = ca, tex = char_prefab .. ".tex", tip = r.builder_tag }) end
     end
     if r.level then
+        -- tech_map 格式：{ { level, prefab_or_prefabs }, ... }
+        -- prefab_or_prefabs 可以是字符串（单站）或字符串数组（同一 level 可在多站制作）
+        -- 兼容规则：DST 中 prototyper 的 techtree 决定了哪些 level 的配方可在该 station 制作；
+        -- 同一 level 在多个 station 的 techtree 中都包含时，所有 station 都应同时显示。
         local tech_map = {
-            SCIENCE={{1, "researchlab"}, {2, "researchlab2"}, {3, "researchlab2"}},
-            MAGIC={{2, "researchlab4"}, {3, "researchlab4"}},
-            ANCIENT={{2, "researchlab3"}, {3, "researchlab3"}, {4, "researchlab3"}},
+            SCIENCE={{1, "researchlab"}, {2, "researchlab2"}},
+            MAGIC={
+                {1, {"researchlab", "researchlab2"}},  -- 魔 1 本：科学机器和炼金引擎都能做
+                {2, "researchlab4"},                   -- 灵子分解器
+                {3, "researchlab3"},                   -- 暗影操纵器
+            },
+            ANCIENT={
+                {2, {"ancient_altar_broken", "ancient_altar"}},
+                {3, "ancient_altar"},
+                {4, "ancient_altar"},
+            },
             CELESTIAL={{1, "moon_altar"}, {3, "moon_altar"}},
             SEAFARING={{1, "seafaring_prototyper"}, {2, "seafaring_prototyper"}},
             SCULPTING={{1, "sculptingtable"}, {2, "sculptingtable"}},
             SHADOW={{3, "shadow_forge"}},
+            CARTOGRAPHY={{2, "cartographydesk"}},
+            ORPHANAGE={{1, "critterlab"}},
+            LOST={{1, "turfcraftingstation"}, {2, "carpentry_station"}, {3, "turfcraftingstation"}, {4, "carpentry_station"}},
         }
-        for tech, levels in pairs(r.level) do
-            local defs = tech_map[tech]
-            if defs then
-                for _, pair in ipairs(defs) do
-                    if pair[1] == r.level[tech] then
-                        local ta = GetInventoryItemAtlas(pair[2] .. ".tex")
-                        if ta then table.insert(extra_icons, { atlas = ta, tex = pair[2] .. ".tex", tip = pair[2] }) end
-                        break
+        -- 必须蓝图解锁的配方（硬编码，跳过制作站显示）
+        local bp_blacklist = { deserthat = true }
+        if not bp_blacklist[r.name] and not bp_blacklist[r.product] then
+            for tech, levels in pairs(r.level) do
+                local defs = tech_map[tech]
+                if defs then
+                    local added = {}
+                    for _, pair in ipairs(defs) do
+                        if pair[1] == r.level[tech] and r.level[tech] > 0 then
+                            -- 将 prefab 统一为数组以便统一处理
+                            local prefabs = type(pair[2]) == "table" and pair[2] or { pair[2] }
+                            for _, pname in ipairs(prefabs) do
+                                if not added[pname] then
+                                    added[pname] = true
+                                    -- 直连检查 inventoryimages 图集（不依赖 GetInventoryItemAtlas 的回退）
+                                    local img_name = pname .. ".tex"
+                                    local ta = nil
+                                    local inv_atlases = {"images/inventoryimages.xml","images/inventoryimages1.xml","images/inventoryimages2.xml","images/inventoryimages3.xml","images/inventoryimages4.xml"}
+                                    for _, a in ipairs(inv_atlases) do
+                                        if GLOBAL.TheSim:AtlasContains(a, img_name) then
+                                            ta = a
+                                            break
+                                        end
+                                    end
+                                    if ta then
+                                        local tip = (GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES and GLOBAL.STRINGS.NAMES[string.upper(pname)]) or pname
+                                        table.insert(extra_icons, { atlas = ta, tex = img_name, tip = tip, prefab = pname })
+                                    else
+                                        local tip = (GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES and GLOBAL.STRINGS.NAMES[string.upper(pname)]) or pname
+                                        table.insert(extra_icons, { atlas = nil, tex = img_name, tip = tip, prefab = pname })
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
     end
     if r.nounlock then
-        local ba = GetInventoryItemAtlas("blueprint.tex")
-        if ba then table.insert(extra_icons, { atlas = ba, tex = "blueprint.tex", tip = "Blueprint" }) end
+        -- 站锁配方：nounlock=true 的配方无法原型解锁，需在对应制作站旁制作
+        if r.level and next(r.level) then
+            -- 为已添加的 station 图标追加"需在制作站旁制作"提示
+            for _, icon in ipairs(extra_icons) do
+                if icon.prefab == "ancient_altar" or icon.prefab == "ancient_altar_broken"
+                    or icon.prefab == "shadow_forge" or icon.prefab == "moon_altar" then
+                    icon.tip = icon.tip .. "\n" .. WIT_TXT.NOUNLOCK_STATION
+                end
+            end
+        end
+    end
+    -- 检测配方是否必须蓝图解锁（硬编码 + nounlock+X_blueprint 兜底）
+    local must_bp = false
+    local bp_blacklist = { deserthat=true }  -- 少数有科技等级但必须蓝图的配方
+    if bp_blacklist[r.name] or bp_blacklist[r.product] then
+        must_bp = true
+    elseif r.nounlock then
+        local bp_check = (r.product or r.name) .. "_blueprint"
+        if GLOBAL.PrefabExists and GLOBAL.PrefabExists(bp_check) then
+            must_bp = true
+        end
+    else
+        for _, lv in pairs(r.level or {}) do
+            if lv >= 10 then must_bp = true; break end
+        end
+    end
+    if must_bp then
+        local ba = GLOBAL.GetInventoryItemAtlas("blueprint.tex")
+            or (GLOBAL.GetScrapbookIconAtlas and GLOBAL.GetScrapbookIconAtlas("blueprint.tex"))
+        if ba then
+            local btip = (GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES and GLOBAL.STRINGS.NAMES["BLUEPRINT"]) or "Blueprint"
+            table.insert(extra_icons, { atlas = ba, tex = "blueprint.tex", tip = btip })
+        end
     end
     if r.is_deconstruction_recipe then
-        local da = "images/crafting_menu.xml"
-        if da then table.insert(extra_icons, { atlas = da, tex = "ingredient_craft.tex", tip = WIT_TXT.SRC_DECONSTRUCT }) end
+        -- 仅当产物无正常合成配方时显示拆解图标（如恐怖圆盾等 boss 掉落品）
+        local prod = r.product or r.name
+        local has_normal = false
+        if WIT.by_product[prod] then
+            for _, pr in ipairs(WIT.by_product[prod]) do
+                if not pr.is_deconstruction_recipe then
+                    has_normal = true
+                    break
+                end
+            end
+        end
+        if not has_normal then
+            -- 拆解魔杖 3D 模型（无图集可用时渲染）
+            table.insert(extra_icons, { atlas = nil, tex = nil, tip = WIT_TXT.SRC_DECONSTRUCT, prefab = "greenstaff" })
+        end
     end
     if #extra_icons > 0 then
         local ex = start_x + ing_count * 58 + 68
         for _, ei in ipairs(extra_icons) do
-            local eimg = WIT_CONTENT:AddChild(Image(ei.atlas, ei.tex))
-            if eimg then
-                eimg:SetSize(20, 20); eimg:SetPosition(ex, card_y + 30)
-                eimg:SetTooltip(CN(ei.tip) or ei.tip)
-                local prefab = ei.tip
-                eimg.OnMouseButton = function(_, button, down)
-                    if not down and button == 0 then
-                        BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
+            if ei.atlas then
+                local eimg = WIT_CONTENT:AddChild(Image(ei.atlas, ei.tex))
+                if eimg then
+                    eimg:SetSize(20, 20); eimg:SetPosition(ex, card_y + 30)
+                    eimg:SetTooltip(CN(ei.tip) or ei.tip)
+                    local prefab = ei.tip
+                    eimg.OnMouseButton = function(_, button, down)
+                        if not down and button == 0 then
+                            BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
+                        end
                     end
                 end
-                ex = ex + 24
+            else
+                -- 手动创建 UIAnim 3D 模型（固定小比例，适合右上角角标）
+                local anim = nil
+                local entry = ei.prefab and _GetScrapbookEntry(ei.prefab)
+                if entry and entry.build and entry.bank then
+                    anim = WIT_CONTENT:AddChild(UIAnim())
+                    if anim then
+                        local s = anim:GetAnimState()
+                        if s then
+                            s:SetBuild(entry.build)
+                            s:SetBank(entry.bank)
+                            if entry.anim and #entry.anim > 0 then
+                                s:SetPercent(entry.anim, 0.5)
+                            end
+                            s:Hide("snow"); s:Hide("mouseover")
+                        end
+                        local sc = ({ ancient_altar=0.03, ancient_altar_broken=0.03, greenstaff=0.1 })[ei.prefab] or 0.03
+                        local ox = ({ greenstaff=2 })[ei.prefab] or 0
+                        local oy = ({ ancient_altar=1, ancient_altar_broken=1, greenstaff=2 })[ei.prefab] or 0
+                        anim:SetScale(sc)
+                        anim:SetPosition(ex + ox, card_y + 30 + oy)
+                        anim:SetTooltip(CN(ei.tip) or ei.tip)
+                        local prefab = ei.tip
+                        anim.OnMouseButton = function(_, button, down)
+                            if not down and button == 0 then
+                                BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
+                            end
+                        end
+                    end
+                end
+                if not anim then
+                    -- 无 scrapbook entry 时的文字兜底（inv_slot + 首字母）
+                    local fb = WIT_CONTENT:AddChild(Image("images/hud.xml", "inv_slot.tex"))
+                    if fb then
+                        fb:SetSize(20, 20); fb:SetPosition(ex, card_y + 30)
+                        fb:SetTooltip(CN(ei.tip) or ei.tip)
+                        local ftxt = fb:AddChild(Text(NEWFONT, 14))
+                        if ftxt then
+                            ftxt:SetString((CN(ei.tip) or ei.tip):sub(1, 1):upper())
+                            ftxt:SetPosition(0, 0)
+                            ftxt:SetColour(0.6, 0.55, 0.4, 1)
+                            ftxt:SetHAlign(ANCHOR_MIDDLE)
+                            ftxt:SetVAlign(ANCHOR_MIDDLE)
+                        end
+                        local prefab = ei.tip
+                        fb.OnMouseButton = function(_, button, down)
+                            if not down and button == 0 then
+                                BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
+                            end
+                        end
+                    end
+                end
             end
+            ex = ex + 24
         end
     end
 
-    local state = GetRecipeBuildState(r.name)
-    if state ~= nil then
-        local can_craft = (state == "has_ingredients" or state == "buffered" or state == "freecrafting" or state == "prototype")
+    if not r.is_deconstruction_recipe then
+        local state = GetRecipeBuildState(r.name)
+        local can_craft = false
+        if state ~= nil and state ~= "unknown" then
+            if r.nounlock then
+                -- 站锁配方（如远古制作站）：必须在制作站旁才能制作，不能从标准菜单直接做
+                can_craft = false
+            elseif state == "has_ingredients" or state == "buffered" or state == "freecrafting" then
+                can_craft = true
+            elseif state == "prototype" then
+                -- 材料足够，需在科技站旁原型合成；在站旁时 DST build_state 即为 prototype
+                can_craft = true
+            end
+        end
         local craft_btn = WIT_CONTENT:AddChild(ImageButton("images/crafting_menu.xml", "ingredient_craft.tex", "ingredient_craft.tex"))
         if craft_btn then
             craft_btn:SetPosition(start_x + ing_count * 58 + 32 + 32, card_y - 32)
@@ -980,7 +1141,7 @@ function GetCurrentRecipes()
     if WIT_CUR_CAT == "CRAFTING" then
         local recipes
         if WIT_MODE == "SOURCE" then
-            -- R 模式：排除拆解配方（拆解属于用途，不是来源）
+            -- R 模式：正常来源配方 + 拆解配方（选中物品作为拆解产出物）
             recipes = {}
             local src = WIT.by_product[WIT_NAME]
             if src then
@@ -988,11 +1149,21 @@ function GetCurrentRecipes()
                     if not r.is_deconstruction_recipe then table.insert(recipes, r) end
                 end
             end
+            local decon = WIT.by_material[WIT_NAME]
+            if decon then
+                for _, r in ipairs(decon) do
+                    if r.is_deconstruction_recipe then table.insert(recipes, r) end
+                end
+            end
         else
-            -- U 模式：材料配方 + 拆解配方
+            -- U 模式：材料配方（排除拆解配方中的产出物混淆）+ 拆解配方
             recipes = {}
             local src = WIT.by_material[WIT_NAME]
-            if src then for _, r in ipairs(src) do table.insert(recipes, r) end end
+            if src then
+                for _, r in ipairs(src) do
+                    if not r.is_deconstruction_recipe then table.insert(recipes, r) end
+                end
+            end
             local decon = WIT.by_product[WIT_NAME]
             if decon then
                 for _, r in ipairs(decon) do
@@ -1022,6 +1193,7 @@ end
 function SelectCategory(cat, reset_page)
     WIT_CUR_CAT = cat
     if reset_page then WIT_PAGE = 1 end
+    WIT_expanded_sources = {}  -- 切页签/翻页时重置展开
 
     for c, t in pairs(WIT_TAB_BTNS) do
         if t then
@@ -1756,4 +1928,4 @@ function RenderItemInfo()
             t:SetColour(0.55, 0.5, 0.4, 1)
         end
     end
-end
+end 

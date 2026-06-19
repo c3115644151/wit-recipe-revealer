@@ -147,6 +147,7 @@ if LANG == "zh" then
 	TXT.SRC_TRAP = "陷阱"
 	TXT.SRC_DECONSTRUCT = "拆解"
 	TXT.SRC_NO_SOURCE = "无已知来源"
+	TXT.NOUNLOCK_STATION = "需在制作站旁制作"
 	TXT.CFG_LANG_LABEL = "界面语言"
 	TXT.CFG_LANG_HOVER = "选择 Mod 界面显示语言。切换后需重启游戏生效"
 	TXT.CFG_LANG_AUTO = "自动"
@@ -295,6 +296,7 @@ else
 	TXT.SRC_TRAP = "Trap"
 	TXT.SRC_DECONSTRUCT = "Deconstruct"
 	TXT.SRC_NO_SOURCE = "No known source"
+	TXT.NOUNLOCK_STATION = "Must craft at station"
 	TXT.EATER_BEEFALO = "Beefalo"
 	TXT.EATER_SHADOW = "Shadow Creature"
 	TXT.NAV_BACK = "Back"
@@ -326,22 +328,22 @@ else
 end
 
 function CN(tag)
-	-- 1. 烹饪标签名（蛋度、肉度等）
-	local t = TXT.TAG_NAMES[tag]
-	if t then return t end
-	-- 2. 具体食材/物品名：中文模式用 STRINGS.NAMES，英文模式跳过避免返回中文
+	-- 1. 具体食材/物品名：中文模式用 STRINGS.NAMES，英文模式跳过避免返回中文
 	if LANG == "zh" then
 		if STRINGS and STRINGS.NAMES then
 			local name = STRINGS.NAMES[string.upper(tag)]
 			if name then return name end
 		end
-		-- 3. 动作名（砍树、挖矿等）
+		-- 2. 动作名（砍树、挖矿等）
 		if STRINGS and STRINGS.ACTIONS then
 			local act = STRINGS.ACTIONS[string.upper(tag)]
 			if act and type(act) == "string" then return act end
 			if act and type(act) == "table" and act.GENERIC then return act.GENERIC end
 		end
 	end
+	-- 3. 烹饪标签名（蛋度、肉度等）优先级最低：仅当不是 prefab 时使用
+	local t = TXT.TAG_NAMES[tag]
+	if t then return t end
 	-- 4. 纯回退：英文模式下至少首字母大写
 	if LANG == "en" then
 		return tag:sub(1,1):upper() .. tag:sub(2)
