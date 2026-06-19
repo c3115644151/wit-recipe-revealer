@@ -763,10 +763,10 @@ function RenderSources()
             MakeSlot(WIT_CONTENT, loot.prefab, prod_x, row_y, nil, hl, LOOT_SIZE, LOOT_SIZE)
             local txt = _LootText(loot)
             if txt then
-                local ct = WIT_CONTENT:AddChild(Text(NUMBERFONT, 20))
+                local ct = WIT_CONTENT:AddChild(Text(NUMBERFONT, 26))
                 if ct then
                     ct:SetString(txt)
-                    ct:SetPosition(prod_x, row_y - LOOT_SIZE / 2 - 8)
+                    ct:SetPosition(prod_x, row_y - LOOT_SIZE / 2 - 7)
                     ct:SetColour(0.6, 0.55, 0.4, 1)
                 end
             end

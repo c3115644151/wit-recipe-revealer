@@ -534,6 +534,101 @@ function BuildSourceIndexes()
                     end
                 end
                 if #loots > 0 then WIT.entity_loot[prefab] = loots end
+            elseif ({ koalefant_summer = true, koalefant_winter = true, tallbird = true, grassgator = true,
+                leif = true, leif_sparse = true, spiderqueen = true, perd = true, pigman = true,
+                beehive = true, wasphive = true, hotspring = true, pigtorch = true,
+                mermking = true, gnarwail = true, rocky = true, babybeefalo = true,
+                bunnyman = true, beardlord = true, spiderden = true, livingtree = true,
+                gingerbreadpig = true, cave_entrance = true, resurrectionstone = true,
+                oceantree_pillar = true, fence = true, perdshrine = true, frog = true,
+                mole = true, smallbird = true, ghost = true, knight = true,
+                bishop = true, rook = true, nightmarecreature = true,
+                merm = true, mermguard = true, monkey = true, rabbit = true,
+                rock_avocado_fruit = true, moon_altar = true, moon_altar_pieces = true,
+                moondial = true, rubble = true, driftwood_trees = true,
+                marsh_tree = true, statueruins = true, lureplant = true,
+                decor_flowervase = true, endtable = true, canary_poisoned = true,
+                lunarthrall_plant = true, iceboxtest = true, dragonfly_chest = true,
+                shadowcreature = true, oceanshadowcreature = true })[prefab] then
+                -- SetLoot 修正：使用 inst.components.lootdropper:SetLoot 的实体
+                -- 数据不进入 GLOBAL.LootTables，scrapbook deps 又只列一次丢失实际数量
+                local SETLOOT_LOOT = {
+                    koalefant_summer = { { prefab = "meat", count = 8 }, { prefab = "trunk_summer", count = 1 } },
+                    koalefant_winter = { { prefab = "meat", count = 8 }, { prefab = "trunk_winter", count = 1 } },
+                    tallbird = { { prefab = "meat", count = 2 } },
+                    grassgator = { { prefab = "plantmeat", count = 7 }, { prefab = "cutgrass", count = 2 }, { prefab = "twigs", count = 2 } },
+                    leif = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
+                    leif_sparse = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
+                    spiderqueen = { { prefab = "monstermeat", count = 4 }, { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 }, { prefab = "spiderhat", count = 1 } },
+                    perd = { { prefab = "drumstick", count = 2 } },
+                    pigman = { { prefab = "meat", count = 2 }, { prefab = "pigskin", count = 1 } },
+                    beehive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
+                    wasphive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
+                    hotspring = { { prefab = "moonglass", count = 5 } },
+                    pigtorch = { { prefab = "log", count = 3 }, { prefab = "poop", count = 1 } },
+                    mermking = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 }, { prefab = "kelp", count = 4 } },
+                    gnarwail = { { prefab = "fishmeat", count = 4 } },
+                    rocky = { { prefab = "rocks", count = 2 }, { prefab = "meat", count = 1 }, { prefab = "flint", count = 2 } },
+                    babybeefalo = { { prefab = "smallmeat", count = 3 }, { prefab = "beefalowool", count = 1 } },
+                    bunnyman = { { prefab = "smallmeat", count = 1 } },
+                    beardlord = { { prefab = "beardhair", count = 2 }, { prefab = "monstermeat", count = 1 } },
+                    spiderden = { { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 } },
+                    livingtree = { { prefab = "livinglog", count = 2 } },
+                    gingerbreadpig = { { prefab = "wintersfeastfuel", count = 1 }, { prefab = "crumbs", count = 3 } },
+                    cave_entrance = { { prefab = "rocks", count = 2 }, { prefab = "flint", count = 3 } },
+                    resurrectionstone = { { prefab = "rocks", count = 2 }, { prefab = "marble", count = 2 }, { prefab = "nightmarefuel", count = 1 } },
+                    oceantree_pillar = { { prefab = "log", count = 4 }, { prefab = "twigs", count = 3 } },
+                    fence = { { prefab = "twigs", count = 1 } },
+                    perdshrine = { { prefab = "ash", count = 1 } },
+                    frog = { { prefab = "froglegs", count = 1 } },
+                    mole = { { prefab = "smallmeat", count = 1 } },
+                    smallbird = { { prefab = "smallmeat", count = 1 } },
+                    ghost = { { prefab = "nightmarefuel", count = 1 } },
+                    knight = { { prefab = "gears", count = 1 } },
+                    bishop = { { prefab = "gears", count = 1 } },
+                    rook = { { prefab = "gears", count = 1 } },
+                    nightmarecreature = { { prefab = "nightmarefuel", count = 1 } },
+                    merm = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
+                    mermguard = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
+                    monkey = { { prefab = "smallmeat", count = 1 }, { prefab = "cave_banana", count = 1 } },
+                    rabbit = { { prefab = "smallmeat", count = 1 } },
+                    rock_avocado_fruit = { { prefab = "rock_avocado_fruit_sprout", count = 1 } },
+                    moondial = { { prefab = "moonglass", count = 1 } },
+                    rubble = { { prefab = "rocks", count = 1 } },
+                    driftwood_trees = { { prefab = "charcoal", count = 1 } },
+                    marsh_tree = { { prefab = "charcoal", count = 1 } },
+                    statueruins = { { prefab = "thulecite", count = 1 } },
+                    lureplant = { { prefab = "lureplantbulb", count = 1 } },
+                    decor_flowervase = { { prefab = "spoiled_food", count = 1 } },
+                    endtable = { { prefab = "spoiled_food", count = 1 } },
+                    canary_poisoned = { { prefab = "spoiled_food", count = 1 } },
+                    lunarthrall_plant = { { prefab = "lunarplant_husk", count = 2 }, { prefab = "plantmeat", count = 2 } },
+                    dragonfly_chest = { { prefab = "alterguardianhatshard", count = 1 } },
+                    shadowcreature = { { prefab = "nightmarefuel", count = 1 } },
+                    oceanshadowcreature = { { prefab = "nightmarefuel", count = 1 } },
+                }
+                local sll = SETLOOT_LOOT[prefab]
+                if sll then
+                    local src_type = _ResolveSourceType(entry)
+                    local loots = {}
+                    for _, item in ipairs(sll) do
+                        table.insert(loots, { prefab = item.prefab, count = item.count, chance = 1.0, type = src_type })
+                    end
+                    if #loots > 0 then WIT.entity_loot[prefab] = loots end
+                end
+            elseif GLOBAL.AllRecipes[prefab] and _ResolveSourceType(entry) == "hammer" then
+                -- 锤拆返还：可制作建筑被锤拆后返还 50% 制作材料（四舍五入取整）
+                local recipe = GLOBAL.AllRecipes[prefab]
+                local loots = {}
+                for _, ing in ipairs(recipe.ingredients or {}) do
+                    local ing_type = type(ing) == "table" and ing.type or ing
+                    local ing_amount = type(ing) == "table" and (ing.amount or 1) or 1
+                    if type(ing_type) == "string" and ing_type ~= "" then
+                        local count = math.max(1, math.floor(ing_amount * 0.5 + 0.5))
+                        table.insert(loots, { prefab = ing_type, count = count, chance = 1.0, type = "hammer" })
+                    end
+                end
+                if #loots > 0 then WIT.entity_loot[prefab] = loots end
             elseif entry.deps and type(entry.deps) == "table" and #entry.deps > 0 and _IsSourceEntity(entry) then
                 -- 无 LootTables 时使用 deps，合并重复的固定掉落
                 -- 通用规则：若该实体是某个 cooking station 类型（HAMMER 容器类），
