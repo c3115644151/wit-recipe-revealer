@@ -1,7 +1,7 @@
 name = "[JEI] What Is This"
 description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。"
 author = "凝筝"
-version = "1.3.3"
+version = "1.3.4"
 api_version = 10
 client_only_mod = true
 dst_compatible = true
@@ -11,6 +11,39 @@ priority = 0
 -- Workshop 图标
 icon_atlas = "images/modicon.xml"
 icon = "modicon.tex"
+
+-- ============================
+-- 全键盘按键定义（供 KEY_R / KEY_U 使用）
+-- ============================
+local keyboard = {
+    { 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12' },
+    { '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' },
+    { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M' },
+    { 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z' },
+    { 'Space', 'Tab', 'LShift', 'LCtrl', 'LSuper', 'LAlt' },
+    { 'RAlt', 'RSuper', 'RCtrl', 'RShift', 'Enter', 'Backspace' },
+    { 'BackQuote', 'Minus', 'Equals', 'LeftBracket', 'RightBracket' },
+    { 'Backslash', 'Semicolon', 'Quote', 'Period', 'Comma', 'Slash' },
+    { 'Up', 'Down', 'Left', 'Right', 'Insert', 'Delete', 'Home', 'End', 'PageUp', 'PageDown' },
+}
+local numpad = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Period', 'Divide', 'Multiply', 'Minus', 'Plus' }
+local mouse_btns = { '\238\132\130', '\238\132\131', '\238\132\132' }  -- 中键, 侧键1, 侧键2
+local key_disabled = { description = 'Disabled', data = 'KEY_DISABLED' }
+keys = { key_disabled }
+for i = 1, #keyboard do
+    for j = 1, #keyboard[i] do
+        local key = keyboard[i][j]
+        keys[#keys + 1] = { description = key, data = 'KEY_' .. key:upper() }
+    end
+    keys[#keys + 1] = key_disabled
+end
+for i = 1, #numpad do
+    local key = numpad[i]
+    keys[#keys + 1] = { description = 'Numpad ' .. key, data = 'KEY_KP_' .. key:upper() }
+end
+for i = 1, #mouse_btns do
+    keys[#keys + 1] = { description = mouse_btns[i], data = mouse_btns[i] }
+end
 
 -- 配置项（运行时由 _OpenSettings 根据语言动态本地化）
 configuration_options =
@@ -30,62 +63,16 @@ configuration_options =
     {
         name = "KEY_R",
         label = "来源查询键",
-        hover = "悬浮物品后按下此键，查看该物品的制作/烹饪配方",
-        options =
-        {
-            {description = "Z", data = 122},
-            {description = "X", data = 120},
-            {description = "C", data = 99},
-            {description = "V", data = 118},
-            {description = "B", data = 98},
-            {description = "N", data = 110},
-            {description = "M", data = 109},
-            {description = "F", data = 102},
-            {description = "G", data = 103},
-            {description = "H", data = 104},
-            {description = "J", data = 106},
-            {description = "K", data = 107},
-            {description = "L", data = 108},
-            {description = "Q", data = 113},
-            {description = "R (默认)", data = 114},
-            {description = "T", data = 116},
-            {description = "Y", data = 121},
-            {description = "U", data = 117},
-            {description = "I", data = 105},
-            {description = "O", data = 111},
-            {description = "P", data = 112},
-        },
-        default = 114,
+        hover = "悬浮物品后按下此键，查看该物品的制作/烹饪配方及获取来源",
+        options = keys,
+        default = "KEY_R",
     },
     {
         name = "KEY_U",
         label = "用途查询键",
         hover = "悬浮物品后按下此键，查看该物品的用途",
-        options =
-        {
-            {description = "Z", data = 122},
-            {description = "X", data = 120},
-            {description = "C", data = 99},
-            {description = "V", data = 118},
-            {description = "B", data = 98},
-            {description = "N", data = 110},
-            {description = "M", data = 109},
-            {description = "F", data = 102},
-            {description = "G", data = 103},
-            {description = "H", data = 104},
-            {description = "J", data = 106},
-            {description = "K", data = 107},
-            {description = "L", data = 108},
-            {description = "Q", data = 113},
-            {description = "R", data = 114},
-            {description = "T", data = 116},
-            {description = "Y", data = 121},
-            {description = "U (默认)", data = 117},
-            {description = "I", data = 105},
-            {description = "O", data = 111},
-            {description = "P", data = 112},
-        },
-        default = 117,
+        options = keys,
+        default = "KEY_U",
     },
     {
         name = "POPUP_POSITION",

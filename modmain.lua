@@ -18,7 +18,6 @@ ImageButton = GLOBAL.ImageButton
 
 -- ============================
 -- 全局常量 (WIT_ 前缀避免全局污染)
--- 注意：WIT_KEYS 在 wit_core.lua 中定义（支持运行时重绑定）
 -- WIT_COOKING_ALIASES / WIT_INGREDIENT_PREFAB_MAP → wit_core.lua
 -- WIT_PAGE_SIZE → wit_ui.lua
 
@@ -71,24 +70,18 @@ end)
 modimport("scripts/wit_lang")
 modimport("scripts/wit_core")
 modimport("scripts/wit_ui")
+modimport("scripts/keybind")
 
--- 读取悬浮详情配置（wit_ui 加载后才能覆盖默认值）
+-- 读取悬浮详情配置
 WIT_HOVER_INFO = GetModConfigData("SHOW_HOVER_INFO")
 
--- 注册全局按键分发器（两个模块加载完后 WIT_DISPATCH_R/U 才可用）
-TheInput:AddKeyHandler(function(key, down)
-    if not down then return end
-    -- 重绑定模式：捕获按键后更新UI
-    if WIT_REBINDING then
-        CompleteRebinding(key)
-        return
-    end
-    if key == WIT_KEYS.R then
-        WIT_DISPATCH_R()
-    elseif key == WIT_KEYS.U then
-        WIT_DISPATCH_U()
-    end
-end)
+-- keybind 回调：管理按键事件处理器
+local key_handlers = {}
+function KeyBind(name, key)
+    if key_handlers[name] then key_handlers[name]:Remove() end
+    local fn = name == "KEY_R" and WIT_DISPATCH_R or WIT_DISPATCH_U
+    key_handlers[name] = key and TheInput:AddKeyDownHandler(key, fn) or nil
+end
 
 -- ============================
 -- 初始化事件

@@ -184,7 +184,6 @@ function ClosePopup()
     WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
     WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
     WIT_OPEN_COOKPOT = nil; WIT_COOK_CONTEXT = nil
-    WIT_REBINDING = nil
 end
 
 -- ============================
@@ -1476,63 +1475,20 @@ function CreatePopup(name, mode)
             end
         end
 
+        -- 2. 打开 Mod 配置界面（keybind.lua 会自动替换按键选项为交互式绑定）
         local ModConfigScreen = require("screens/modconfigurationscreen")
         local screen = ModConfigScreen(modname, true)
         TheFrontEnd:PushScreen(screen)
         WIT_SETTINGS_OPEN = true
         settings_root = screen
 
-        -- 2. 屏幕创建后：修正 spinner 宽度 + KEY_R/U 改为交互式按键绑定
+        -- 3. 修正 LANGUAGE spinner 宽度
         for i, opt_w in ipairs(screen.optionwidgets) do
             local opt_data = screen.options[i]
-            if opt_data then
-                if opt_data.name == "LANGUAGE" then
-                    pcall(function()
-                        opt_w.spinner:SetWidth(260)
-                    end)
-                elseif opt_data.name == "KEY_R" or opt_data.name == "KEY_U" then
-                    local action = opt_data.name:match("KEY_(.)")
-                    if action and opt_w.spinner then
-                        local spinner = opt_w.spinner
-
-                        -- 1. 保存标签信息（label 是 spinner 的子控件，隐藏 spinner 会连带隐藏）
-                        local label_text = (opt_data.label or opt_data.name) .. ":"
-                        local label_hover = opt_data.hover or ""
-
-                        -- 2. 隐藏原 Spinner
-                        spinner:Hide()
-
-                        -- 3. 重建标签（作为 opt_w 的直接子控件）
-                        local LABEL_X = 122.5  -- spinner(325) + label_offset(-202.5)
-                        local new_label = opt_w:AddChild(GLOBAL.Text(GLOBAL.NEWFONT, 25, label_text))
-                        new_label:SetPosition(LABEL_X, 0)
-                        new_label:SetRegionSize(225, 50)
-                        new_label:SetHAlign(GLOBAL.ANCHOR_RIGHT)
-                        new_label:SetColour(0, 0, 0, 1)
-                        new_label:SetHoverText(label_hover)
-
-                        -- 4. 新建交互式按键绑定按钮
-                        local btn = opt_w:AddChild(GLOBAL.TextButton())
-                        btn:SetTextSize(25)
-                        btn:SetPosition(325, 0)
-                        btn:SetTextColour(0, 0, 0, 1)
-                        btn:SetTextFocusColour(0.8, 0.2, 0.2, 1)
-                        btn:SetTooltip(WIT_TXT.CFG_REBIND_TOOLTIP)
-
-                        local function _UpdateBtnLabel()
-                            btn:SetText("[ " .. KeyName(WIT_KEYS[action]) .. " ]")
-                        end
-                        _UpdateBtnLabel()
-
-                        btn:SetOnClick(function()
-                            if WIT_REBINDING then return end
-                            btn:SetText(WIT_TXT.CFG_REBIND_WAIT)
-                            StartRebinding(action, function(_new_key)
-                                _UpdateBtnLabel()
-                            end)
-                        end)
-                    end
-                end
+            if opt_data and opt_data.name == "LANGUAGE" then
+                pcall(function()
+                    opt_w.spinner:SetWidth(260)
+                end)
             end
         end
 

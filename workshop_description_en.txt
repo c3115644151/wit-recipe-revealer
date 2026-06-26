@@ -9,8 +9,9 @@ We've all been there — picking up an unfamiliar item with no idea what it's fo
 [h1]Features[/h1]
 
 [list]
-[*] [b]R Key — Source Lookup[/b] — Hover any item and press R to see all recipes that produce it (crafting + cooking)
+[*] [b]R Key — Source Lookup[/b] — Hover any item and press R to see all sources (crafting + cooking + loot drops)
 [*] [b]U Key — Usage Lookup[/b] — Hover any item and press U to see what recipes it can be used in
+[*] [b]Sources Tab[/b] — New tab showing entity drops, mining, chopping, picking, digging, and hammer returns
 [*] [b]Info Tab[/b] — Full stats panel covering food, combat, equipment, tools, and misc
 [*] [b]Cooking Conditions[/b] — Exact tag requirements for every dish (e.g., "Meat > 1", "Monster = 0")
 [*] [b]Cross-Navigation[/b] — Click any ingredient icon to dig deeper (left-click = source, right-click = usage)
@@ -20,23 +21,34 @@ We've all been there — picking up an unfamiliar item with no idea what it's fo
 
 [h1]How to Use[/h1]
 
-Hover over any item and press R to see where it comes from, or U to see what it can make. The popup has three tabs: Crafting, Cooking, and Info.
+Hover over any item and press R to see where it comes from (crafting + cooking + drops), or U to see what it can make. The popup has four tabs: Crafting, Cooking, Info, and Sources.
 
 Click any ingredient icon to drill deeper — left-click for source, right-click for usage. The craft button on crafting cards jumps to the game's crafting panel. The fill button on cooking cards auto-fills an open cook pot when you have enough ingredients.
 
-Press R or U again (with nothing under the cursor) to close. All hotkeys can be customized in the Mod Configuration screen, accessible via the ≡ button in the top-right of the popup.
+Press R or U again (with nothing under the cursor) to close. All hotkeys can be customized in the Mod Configuration screen, accessible via the gear icon in the top-right of the popup.
 
 [h1]Changelog[/h1]
 
 [list]
+[*] [b]v1.3.3 — Current Version[/b]
+[list]
+[*] [b]Accurate Drop Quantities[/b] — Fixed 50+ entities showing wrong drop counts: Koalefant meat×8, Tallbird meat×2, Grass Gator plantmeat×7, Treeguard livinglog×6, Spider Queen ×4 each, Beehive honey×3, Hot Spring moonglass×5, and many more
+[*] [b]Hammer Returns Calculated[/b] — Structures now show accurate 50% recipe returns: Chest (3 boards) → 2 boards, Ice Box (2 gears) → 1 gear
+[*] [b]Drop Text Cleanup[/b] — Pure numbers instead of the × symbol; increased font size
+[*] [b]3D Station Models[/b] — Ancient Pseudoscience Station, Moon Altar etc. now render as 3D models matching the scrapbook
+[*] [b]Station Upgrade Chains[/b] — When multiple station tiers can craft a recipe, all compatible stations are shown
+[*] [b]Blueprint Fixes[/b] — Blueprint-required recipes now correctly show the blueprint icon; Desert Goggles no longer falsely show the Alchemy Engine
+[*] [b]Uniform Entity Icons[/b] — Source tab entity icons are now uniformly scaled and centered, no longer overlapping cards
+[*] [b]Dedicated Deconstruction Layout[/b] — One-to-many layout with Deconstruction Staff 3D icon
+[*] [b]Auto-Collapse Sources[/b] — Expanded loot lists collapse on page turn, tab switch, or panel close
+[*] [b]Smarter Craft Button[/b] — Station-locked recipes always dim; cooking tab dims when no pot is open
+[/list]
 [*] [b]v1.3.0[/b]
 [list]
-[*] [b]New "Sources" Tab!</b> — Press R on any item to see a new Sources tab showing how to obtain it from the world: mob drops, mining, chopping, picking, digging, hammering. Source entities are rendered as 3D models (just like the scrapbook detail view), not flat icons
-[*] [b]Deconstruction Recipes</b> — Press U on an item that can be deconstructed (e.g. Night Sword), and the crafting tab now shows what the Deconstruction Staff would yield. Deconstruction cards have a special indicator icon
-[*] [b]Crafting Station Icons</b> — Each recipe card now shows small icons telling you what station it needs (Science Machine, Shadow Manipulator, etc.), whether it's character-exclusive, or requires a blueprint
-[*] [b]Smarter Loot Display</b> — "×1" is hidden to reduce clutter; probability drops show percentages; overflowing loot tables get an expand/collapse button
-[*] [b]Source Type Icons</b> — Each source card has a small icon showing how to obtain it: crossed swords for combat drops, hand for picking, tool for mining/chopping
-[*] [b]Better Navigation</b> — Click the title item icon: left click = source lookup, right click = usage lookup. No more getting stuck with nowhere to go back
+[*] [b]New "Sources" Tab![/b] — Shows entity drops, mining, chopping, picking, digging, hammering
+[*] [b]Deconstruction Recipes[/b] — U mode shows Deconstruction Staff yields
+[*] [b]Station Icons[/b] — Station requirements, character exclusivity, and blueprint marks on recipe cards
+[*] [b]Better Navigation[/b] — Title item icon supports left/right click for source/usage lookup
 [/list]
 [*] [b]v1.2.0[/b]
 [list]
@@ -52,7 +64,7 @@ This mod is actively developed. More features coming soon.
 
 [b]Planned:[/b]
 [list]
-[*] Full search UI — Browseable grid of all items with search
+[*] Full search UI — Browsable grid of all items with search
 [*] Recipe bookmarks — Mark favorites for quick access
 [*] Better compatibility with other mods' recipes
 [/list]
