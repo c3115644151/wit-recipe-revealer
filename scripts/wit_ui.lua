@@ -213,13 +213,20 @@ local function _ResumeWorldForPopup()
 end
 
 function ClosePopup()
-    _ResumeWorldForPopup()
+    -- 保存当前条目供导航历史栈使用（CreatePopup 会消费此标记）
+    WIT_PendingHistoryPush = WIT_NAME ~= nil and { prefab = WIT_NAME, mode = WIT_MODE } or nil
     if WIT_POPUP ~= nil then WIT_POPUP:Kill(); WIT_POPUP = nil end
     WIT_expanded_sources = {}  -- 关UI时重置展开
     WIT_NAME = nil; WIT_MODE = nil; WIT_CUR_CAT = nil; WIT_PAGE = 1
     WIT_AVAIL_CATS = {}; WIT_CONTENT = nil; WIT_TAB_BTNS = {}
     WIT_PG_TEXT = nil; WIT_PG_PREV = nil; WIT_PG_NEXT = nil
     WIT_OPEN_COOKPOT = nil; WIT_COOK_CONTEXT = nil
+end
+
+function ClosePopupAndResume()
+    _ResumeWorldForPopup()
+    WIT_BACK_STACK = {}; WIT_FORWARD_STACK = {}; WIT_PendingHistoryPush = nil
+    ClosePopup()
 end
 
 -- ============================
@@ -1328,6 +1335,12 @@ end
 
 function CreatePopup(name, mode)
     BuildCookContext()
+    -- 导航历史：若非前进/后退导航，将上一条目入后退栈
+    if WIT_PendingHistoryPush then
+        table.insert(WIT_BACK_STACK, WIT_PendingHistoryPush)
+        WIT_FORWARD_STACK = {}  -- 新的导航分支清空前进栈
+    end
+    WIT_PendingHistoryPush = nil
     WIT_NAME = name; WIT_MODE = mode; WIT_PAGE = 1
     WIT_HOVER_INFO = GetModConfigData("SHOW_HOVER_INFO")
 
@@ -1469,7 +1482,7 @@ function CreatePopup(name, mode)
         close:SetPosition(172, 213)
         close:SetTextColour(0.65, 0.58, 0.45, 1)
         close:SetTextFocusColour(1, 1, 1, 1)
-        close:SetOnClick(ClosePopup)
+        close:SetOnClick(ClosePopupAndResume)
         _AddHoverScale(close)
     end
 
@@ -1496,6 +1509,12 @@ function CreatePopup(name, mode)
                 elseif opt.name == "KEY_U" then
                     opt.label = WIT_TXT.CFG_KEY_U_LABEL
                     opt.hover = WIT_TXT.CFG_KEY_U_HOVER
+                elseif opt.name == "KEY_NAV_BACK" then
+                    opt.label = WIT_TXT.CFG_NAV_BACK_LABEL
+                    opt.hover = WIT_TXT.CFG_NAV_BACK_HOVER
+                elseif opt.name == "KEY_NAV_FORWARD" then
+                    opt.label = WIT_TXT.CFG_NAV_FORWARD_LABEL
+                    opt.hover = WIT_TXT.CFG_NAV_FORWARD_HOVER
                 elseif opt.name == "POPUP_POSITION" then
                     opt.label = WIT_TXT.CFG_POS_LABEL
                     opt.hover = WIT_TXT.CFG_POS_HOVER
@@ -1594,6 +1613,36 @@ function CreatePopup(name, mode)
 end
 
 -- ============================
+-- 导航历史：前进/后退
+-- ============================
+
+function WIT_NAV_BACK()
+    if #WIT_BACK_STACK == 0 or WIT_POPUP == nil then return end
+    -- 当前条目压入前进栈
+    if WIT_NAME ~= nil then
+        table.insert(WIT_FORWARD_STACK, { prefab = WIT_NAME, mode = WIT_MODE })
+    end
+    local entry = table.remove(WIT_BACK_STACK)
+    BuildIndexes()
+    WIT_PendingHistoryPush = nil  -- 阻止 CreatePopup 重复入栈
+    ClosePopup()
+    CreatePopup(entry.prefab, entry.mode)
+end
+
+function WIT_NAV_FORWARD()
+    if #WIT_FORWARD_STACK == 0 or WIT_POPUP == nil then return end
+    -- 当前条目压入后退栈
+    if WIT_NAME ~= nil then
+        table.insert(WIT_BACK_STACK, { prefab = WIT_NAME, mode = WIT_MODE })
+    end
+    local entry = table.remove(WIT_FORWARD_STACK)
+    BuildIndexes()
+    WIT_PendingHistoryPush = nil  -- 阻止 CreatePopup 重复入栈
+    ClosePopup()
+    CreatePopup(entry.prefab, entry.mode)
+end
+
+-- ============================
 -- 键盘输入处理 (from wit_input.lua)
 -- ============================
 -- 注意：全局按键分发器在 modmain.lua 中注册，
@@ -1605,14 +1654,18 @@ function WIT_DISPATCH_R()
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end
         if ThePlayer.components.playercontroller ~= nil and ThePlayer.components.playercontroller.placer ~= nil then return end
         local item = GetHoverItem()
+        -- 合成菜单详情面板悬浮材料/产物图标时按 R 键也可触发
+        if item == nil and WIT_POPUP == nil and WIT_HOVERED_DETAIL_PREFAB then
+            item = { prefab = WIT_HOVERED_DETAIL_PREFAB }
+        end
         if item == nil then
-            if WIT_POPUP ~= nil then ClosePopup() end
+            if WIT_POPUP ~= nil then ClosePopupAndResume() end
             return
         end
         local name = item.prefab or "unknown"
         BuildIndexes()
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and WIT_MODE == "SOURCE" then ClosePopup(); return end
+            if WIT_NAME == name and WIT_MODE == "SOURCE" then ClosePopupAndResume(); return end
             ClosePopup()
         end
         CreatePopup(name, "SOURCE")
@@ -1625,14 +1678,18 @@ function WIT_DISPATCH_U()
         if ThePlayer == nil then return end
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end
         local item = GetHoverItem()
+        -- 合成菜单详情面板悬浮材料/产物图标时按 U 键也可触发
+        if item == nil and WIT_POPUP == nil and WIT_HOVERED_DETAIL_PREFAB then
+            item = { prefab = WIT_HOVERED_DETAIL_PREFAB }
+        end
         if item == nil then
-            if WIT_POPUP ~= nil then ClosePopup() end
+            if WIT_POPUP ~= nil then ClosePopupAndResume() end
             return
         end
         local name = item.prefab or "unknown"
         BuildIndexes()
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and WIT_MODE == "USE" then ClosePopup(); return end
+            if WIT_NAME == name and WIT_MODE == "USE" then ClosePopupAndResume(); return end
             ClosePopup()
         end
         CreatePopup(name, "USE")

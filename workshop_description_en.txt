@@ -30,7 +30,13 @@ Press R or U again (with nothing under the cursor) to close. All hotkeys can be 
 [h1]Changelog[/h1]
 
 [list]
-[*] [b]v1.3.5 — Current Version[/b]
+[*] [b]v1.3.6 — Current Version[/b]
+[list]
+[*] [b]Crafting Detail Panel Integration[/b] — Ingredient and product icons in the crafting detail panel now support WIT lookup: left-click product for source, right-click or hover+R/U for recipe/usage details
+[*] [b]Navigation Back/Forward History[/b] — Browse history within a single popup session; default mouse side buttons (back button = backward, forward button = forward); history clears on popup close
+[*] [b]Auto-Pause Edge Cases Fixed[/b] — Prevents world pause flickering during navigation jumps; world now only resumes on genuine popup close
+[/list]
+[*] [b]v1.3.5[/b]
 [list]
 [*] [b]Optional Single-Player Auto Pause[/b] — Opening the main WIT popup can now automatically pause the world in single-player; enabled by default and can be turned off in settings
 [*] [b]In-Game Settings Screen Fix[/b] — Opening settings from the WIT panel now goes to the same upgraded config screen used outside the game

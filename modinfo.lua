@@ -1,7 +1,7 @@
 name = "[JEI] What Is This"
-description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.3.5] 新增单人打开主界面自动暂停（可关闭）；游戏内设置页改为新版交互式按键绑定，内外设置体验统一\n[v1.3.5] Added optional single-player auto-pause on popup open; the in-game settings page now uses the same interactive key rebinding flow as the external config screen"
+description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.3.6] 合成菜单详情面板图标支持左/右键+悬浮 R/U 查询；新增导航前进/后退历史功能，默认绑定鼠标侧键\n[v1.3.6] Crafting menu detail icons now support left/right click + hover R/U lookup; added navigation back/forward history, default to mouse side buttons"
 author = "凝筝"
-version = "1.3.5"
+version = "1.3.6"
 api_version = 10
 client_only_mod = true
 dst_compatible = true
@@ -73,6 +73,20 @@ configuration_options =
         hover = "悬浮物品后按下此键，查看该物品的用途",
         options = keys,
         default = "KEY_U",
+    },
+    {
+        name = "KEY_NAV_BACK",
+        label = "导航后退键",
+        hover = "在 WIT 弹窗中按下此键，回退到上一个浏览的物品",
+        options = keys,
+        default = '\238\132\131',
+    },
+    {
+        name = "KEY_NAV_FORWARD",
+        label = "导航前进键",
+        hover = "在 WIT 弹窗中按下此键，前进到下一个浏览的物品",
+        options = keys,
+        default = '\238\132\132',
     },
     {
         name = "POPUP_POSITION",
