@@ -383,6 +383,87 @@ function BuildIndexes()
     BuildSourceIndexes()
 end
 
+function DumpTable(t, indent, seen)
+    indent = indent or 0
+    seen = seen or {}
+
+    if type(t) ~= "table" then
+        print(tostring(t))
+        return
+    end
+
+    if seen[t] then
+        print(string.rep(" ", indent) .. "<cycle>")
+        return
+    end
+    seen[t] = true
+
+    for k, v in pairs(t) do
+        local prefix = string.rep(" ", indent) .. tostring(k) .. " = "
+        if type(v) == "table" then
+            print(prefix .. "{")
+            DumpTable(v, indent + 2, seen)
+            print(string.rep(" ", indent) .. "}")
+        else
+            print(prefix .. tostring(v))
+        end
+    end
+end
+
+local function ValueToString(v)
+    local tv = type(v)
+    if tv == "string" then
+        return string.format("%q", v)
+    end
+    return tostring(v)
+end
+
+local function TableToString(t, indent, seen)
+    indent = indent or 0
+    seen = seen or {}
+
+    if type(t) ~= "table" then
+        return ValueToString(t)
+    end
+
+    if seen[t] then
+        return "<cycle/repeated table>"
+    end
+    seen[t] = true
+
+    local lines = {}
+    table.insert(lines, "{")
+
+    for k, v in pairs(t) do
+        local key = string.rep(" ", indent + 2) .. "[" .. ValueToString(k) .. "] = "
+        if type(v) == "table" then
+            table.insert(lines, key .. TableToString(v, indent + 2, seen))
+        else
+            table.insert(lines, key .. ValueToString(v))
+        end
+    end
+
+    table.insert(lines, string.rep(" ", indent) .. "}")
+    return table.concat(lines, "\n")
+end
+
+local function SaveDump(filename, data)
+    local text = TableToString(data)
+
+    TheSim:SetPersistentString(filename, text, false, function(success)
+        print("[WIT] dump saved:", filename, success)
+    end)
+end
+
+function SaveAllDumps()
+    SaveDump("wit_dump_WIT.txt", WIT)
+    SaveDump("wit_dump_AllRecipes.txt", AllRecipes)
+
+    local cooking = _GetCooking()
+    if cooking ~= nil then
+        SaveDump("wit_dump_cooking.txt", cooking)
+    end
+end
 -- ============================
 -- 来源索引构建 (SOURCES tab data)
 -- ============================
