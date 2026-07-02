@@ -173,50 +173,14 @@ WIT_PAGE_SIZE = 3
 local WIT_UI_PAUSED_WORLD = false
 local WIT_NAV_LOCK = false  -- 前进/后退导航时闭锁 ClosePopup 的历史记录
 
-local function _LooksLikeInspectablePrefab(value)
-    if type(value) ~= "string" or value == "" then return false end
-    if _GetScrapbookEntry(value) ~= nil then return true end
-    if GLOBAL.AllRecipes and GLOBAL.AllRecipes[value] ~= nil then return true end
-    if GLOBAL.Prefabs and GLOBAL.Prefabs[value] ~= nil then return true end
-    if WIT.by_product[value] ~= nil or WIT.by_material[value] ~= nil then return true end
-    if WIT.cook_foods[value] ~= nil or WIT.cook_by_ingredient[value] ~= nil then return true end
-    local names = GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES
-    return names ~= nil and names[string.upper(value)] ~= nil
-end
-
-local function _ExtractPrefabFromWidgetValue(value, depth, seen)
-    if value == nil or depth > 3 then return nil end
-    local value_type = type(value)
-    if value_type == "string" then
-        return _LooksLikeInspectablePrefab(value) and value or nil
-    end
-    if value_type ~= "table" then return nil end
-    seen = seen or {}
-    if seen[value] then return nil end
-    seen[value] = true
-
-    if type(value.prefab) == "string" and _LooksLikeInspectablePrefab(value.prefab) then return value.prefab end
-    if type(value.recipe_type) == "string" and _LooksLikeInspectablePrefab(value.recipe_type) then return value.recipe_type end
-    if type(value.product) == "string" and _LooksLikeInspectablePrefab(value.product) then return value.product end
-
-    if type(value.recipe) == "table" then
-        local recipe_prefab = value.recipe.product or value.recipe.name
-        if _LooksLikeInspectablePrefab(recipe_prefab) then return recipe_prefab end
-    end
-
-    for _, key in ipairs({ "item", "data", "entry", "scrapbook_entry", "atlas_data", "prefab_data", "details", "target" }) do
-        local prefab = _ExtractPrefabFromWidgetValue(value[key], depth + 1, seen)
-        if prefab ~= nil then return prefab end
-    end
-
-    if type(value.name) == "string" and _LooksLikeInspectablePrefab(value.name) then return value.name end
-    return nil
-end
-
 function GetHoverItem()
     local hud_ent = TheInput:GetHUDEntityUnderMouse()
     if hud_ent == nil then return nil end
+<<<<<<< HEAD
     -- 普通库存格通常把 item 放在父控件上；官方图鉴的滚动格则把
+=======
+ -- 普通库存格通常把 item 放在父控件上；官方图鉴的滚动格则把
+>>>>>>> 175a4af (feat:支持在图鉴页面使用 R/U 查询)
     -- 当前条目放在更上层 cell 的 data 中。因此向上遍历控件树，
     -- 同时兼容两种结构。
     local widget = hud_ent.widget
@@ -1467,6 +1431,9 @@ function CreatePopup(name, mode, preferred_cat)
     WIT_AVAIL_CATS = avail_cats
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 175a4af (feat:支持在图鉴页面使用 R/U 查询)
     local popup_parent
     local scrapbook_screen = GetActiveScrapbookScreen()
     if scrapbook_screen ~= nil then
@@ -1491,6 +1458,7 @@ function CreatePopup(name, mode, preferred_cat)
         end
 
         popup_parent:MoveToFront()
+<<<<<<< HEAD
 
         -- 图鉴模式下加深弹窗背景，与图鉴复杂的网格/详情区拉开层次
         WIT_SCRAPBOOK_BG = popup_parent:AddChild(Image("images/global.xml", "square.tex"))
@@ -1512,12 +1480,19 @@ function CreatePopup(name, mode, preferred_cat)
     local screen_name = active_screen and (tostring(active_screen.name or active_screen._name or "") .. " " .. tostring(active_screen)):lower() or ""
     if active_screen ~= nil and screen_name:find("scrapbook", 1, true) then
         popup_root = active_screen
+=======
+>>>>>>> 175a4af (feat:支持在图鉴页面使用 R/U 查询)
     else
-        popup_root = ThePlayer.HUD.controls.left_root
-        if popup_root == nil then popup_root = ThePlayer.HUD.controls end
+        popup_parent = ThePlayer.HUD.controls.left_root
+        if popup_parent == nil then popup_parent = ThePlayer.HUD.controls end
     end
+<<<<<<< HEAD
     WIT_POPUP = popup_root:AddChild(Widget("WITPopup"))
 >>>>>>> c124e25 (feat: combine use and source)
+=======
+
+    WIT_POPUP = popup_parent:AddChild(Widget("WITPopup"))
+>>>>>>> 175a4af (feat:支持在图鉴页面使用 R/U 查询)
     if WIT_POPUP == nil then return end
 
     local crafting_hud = ThePlayer.HUD.controls.craftingmenu
