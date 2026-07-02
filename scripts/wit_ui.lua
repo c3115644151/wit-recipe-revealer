@@ -173,10 +173,62 @@ WIT_PAGE_SIZE = 3
 local WIT_UI_PAUSED_WORLD = false
 local WIT_NAV_LOCK = false  -- 前进/后退导航时闭锁 ClosePopup 的历史记录
 
+local function _LooksLikeInspectablePrefab(value)
+    if type(value) ~= "string" or value == "" then return false end
+    if _GetScrapbookEntry(value) ~= nil then return true end
+    if GLOBAL.AllRecipes and GLOBAL.AllRecipes[value] ~= nil then return true end
+    if GLOBAL.Prefabs and GLOBAL.Prefabs[value] ~= nil then return true end
+    if WIT.by_product[value] ~= nil or WIT.by_material[value] ~= nil then return true end
+    if WIT.cook_foods[value] ~= nil or WIT.cook_by_ingredient[value] ~= nil then return true end
+    local names = GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES
+    return names ~= nil and names[string.upper(value)] ~= nil
+end
+
+local function _ExtractPrefabFromWidgetValue(value, depth, seen)
+    if value == nil or depth > 3 then return nil end
+    local value_type = type(value)
+    if value_type == "string" then
+        return _LooksLikeInspectablePrefab(value) and value or nil
+    end
+    if value_type ~= "table" then return nil end
+    seen = seen or {}
+    if seen[value] then return nil end
+    seen[value] = true
+
+    if type(value.prefab) == "string" and _LooksLikeInspectablePrefab(value.prefab) then return value.prefab end
+    if type(value.recipe_type) == "string" and _LooksLikeInspectablePrefab(value.recipe_type) then return value.recipe_type end
+    if type(value.product) == "string" and _LooksLikeInspectablePrefab(value.product) then return value.product end
+
+    if type(value.recipe) == "table" then
+        local recipe_prefab = value.recipe.product or value.recipe.name
+        if _LooksLikeInspectablePrefab(recipe_prefab) then return recipe_prefab end
+    end
+
+    for _, key in ipairs({ "item", "data", "entry", "scrapbook_entry", "atlas_data", "prefab_data", "details", "target" }) do
+        local prefab = _ExtractPrefabFromWidgetValue(value[key], depth + 1, seen)
+        if prefab ~= nil then return prefab end
+    end
+
+    if type(value.name) == "string" and _LooksLikeInspectablePrefab(value.name) then return value.name end
+    return nil
+end
+
 function GetHoverItem()
     local hud_ent = TheInput:GetHUDEntityUnderMouse()
     if hud_ent == nil then return nil end
-    return hud_ent.widget and hud_ent.widget.parent and hud_ent.widget.parent.item
+    local widget = hud_ent.widget
+    local legacy_item = widget and widget.parent and widget.parent.item
+    if legacy_item ~= nil and legacy_item.prefab ~= nil then return legacy_item end
+
+    local cursor = widget
+    local hops = 0
+    while cursor ~= nil and hops < 10 do
+        local prefab = _ExtractPrefabFromWidgetValue(cursor, 0)
+        if prefab ~= nil then return { prefab = prefab } end
+        cursor = cursor.parent
+        hops = hops + 1
+    end
+    return nil
 end
 
 local function _ShouldPauseWorldForPopup()
@@ -215,7 +267,7 @@ end
 
 function ClosePopup()
     -- 保存当前条目供导航历史使用（CreatePopup 会用此值入栈）
-    WIT_PrevHistory = (not WIT_NAV_LOCK and WIT_NAME ~= nil) and { prefab = WIT_NAME, mode = WIT_MODE } or nil
+    WIT_PrevHistory = (not WIT_NAV_LOCK and WIT_NAME ~= nil) and { prefab = WIT_NAME, mode = WIT_MODE, cat = WIT_CUR_CAT } or nil
     if WIT_POPUP ~= nil then WIT_POPUP:Kill(); WIT_POPUP = nil end
     WIT_expanded_sources = {}  -- 关UI时重置展开
     WIT_NAME = nil; WIT_MODE = nil; WIT_CUR_CAT = nil; WIT_PAGE = 1
@@ -1165,69 +1217,100 @@ end
 -- 分类切换 + 配方获取 (from wit_category.lua)
 -- ============================
 
+local function _HasDecon(recipes)
+    for _, r in ipairs(recipes or {}) do if r.is_deconstruction_recipe then return true end end
+    return false
+end
+
+local function _HasCraftFrom(name)
+    if WIT.by_product[name] == nil then return false end
+    for _, r in ipairs(WIT.by_product[name]) do
+        if not r.is_deconstruction_recipe then return true end
+    end
+    return false
+end
+
+local function _HasCraftUse(name)
+    if WIT.by_material[name] then
+        for _, r in ipairs(WIT.by_material[name]) do
+            if not r.is_deconstruction_recipe then return true end
+        end
+    end
+    return WIT.by_product[name] and _HasDecon(WIT.by_product[name]) or false
+end
+
+local function _HasCraftDeconSource(name)
+    if WIT.by_material[name] == nil then return false end
+    for _, r in ipairs(WIT.by_material[name]) do
+        if r.is_deconstruction_recipe then return true end
+    end
+    return false
+end
+
+local function _HasLootSources(name)
+    for _, loots in pairs(WIT.entity_loot or {}) do
+        for _, l in ipairs(loots) do
+            if l.prefab == name then return true end
+        end
+    end
+    return false
+end
+
 function HasData(name, mode)
     if mode == "SOURCE" then
-        local has_recipe = WIT.by_product[name] and (function()
-            for _, r in ipairs(WIT.by_product[name]) do if not r.is_deconstruction_recipe then return true end end
-            return false
-        end)()
-        return has_recipe or (WIT.cook_foods[name] ~= nil)
-    else
-        local has_mat = WIT.by_material[name] and #WIT.by_material[name] > 0
-        local has_cook = WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0
-        local has_decon = WIT.by_product[name] and _HasDecon(WIT.by_product[name])
-        return has_mat or has_cook or has_decon
+        return _HasCraftFrom(name) or _HasCraftDeconSource(name) or WIT.cook_foods[name] ~= nil or _HasLootSources(name)
+    elseif mode == "USE" then
+        return _HasCraftUse(name) or (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0)
     end
+    return _HasCraftFrom(name) or _HasCraftUse(name) or _HasCraftDeconSource(name)
+        or WIT.cook_foods[name] ~= nil
+        or (WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0)
+        or _HasLootSources(name)
 end
 
 function GetCurrentRecipes()
-    if WIT_CUR_CAT == "CRAFTING" then
-        local recipes
-        if WIT_MODE == "SOURCE" then
-            -- R 模式：正常来源配方 + 拆解配方（选中物品作为拆解产出物）
-            recipes = {}
-            local src = WIT.by_product[WIT_NAME]
-            if src then
-                for _, r in ipairs(src) do
-                    if not r.is_deconstruction_recipe then table.insert(recipes, r) end
-                end
+    if WIT_CUR_CAT == "CRAFT_FROM" then
+        local recipes = {}
+        local src = WIT.by_product[WIT_NAME]
+        if src then
+            for _, r in ipairs(src) do
+                if not r.is_deconstruction_recipe then table.insert(recipes, r) end
             end
-            local decon = WIT.by_material[WIT_NAME]
-            if decon then
-                for _, r in ipairs(decon) do
-                    if r.is_deconstruction_recipe then table.insert(recipes, r) end
-                end
-            end
-        else
-            -- U 模式：材料配方（排除拆解配方中的产出物混淆）+ 拆解配方
-            recipes = {}
-            local src = WIT.by_material[WIT_NAME]
-            if src then
-                for _, r in ipairs(src) do
-                    if not r.is_deconstruction_recipe then table.insert(recipes, r) end
-                end
-            end
-            local decon = WIT.by_product[WIT_NAME]
-            if decon then
-                for _, r in ipairs(decon) do
-                    if r.is_deconstruction_recipe then table.insert(recipes, r) end
-                end
+        end
+        local decon = WIT.by_material[WIT_NAME]
+        if decon then
+            for _, r in ipairs(decon) do
+                if r.is_deconstruction_recipe then table.insert(recipes, r) end
             end
         end
         return SortRecipesByBuildable(recipes)
-    elseif WIT_CUR_CAT == "COOKING" then
+    elseif WIT_CUR_CAT == "CRAFT_USE" then
         local recipes = {}
-        if WIT_MODE == "SOURCE" then
-            if WIT.cook_foods[WIT_NAME] then table.insert(recipes, WIT.cook_foods[WIT_NAME]) end
-            table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
-            recipes = SortCookingByAvailable(recipes)
-        else
-            local src = WIT.cook_by_ingredient[WIT_NAME]
-            if src then
-                for _, r in ipairs(src) do table.insert(recipes, r) end
+        local src = WIT.by_material[WIT_NAME]
+        if src then
+            for _, r in ipairs(src) do
+                if not r.is_deconstruction_recipe then table.insert(recipes, r) end
             end
-            table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
         end
+        local decon = WIT.by_product[WIT_NAME]
+        if decon then
+            for _, r in ipairs(decon) do
+                if r.is_deconstruction_recipe then table.insert(recipes, r) end
+            end
+        end
+        return SortRecipesByBuildable(recipes)
+    elseif WIT_CUR_CAT == "COOK_FROM" then
+        local recipes = {}
+        if WIT.cook_foods[WIT_NAME] then table.insert(recipes, WIT.cook_foods[WIT_NAME]) end
+        table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
+        return SortCookingByAvailable(recipes)
+    elseif WIT_CUR_CAT == "COOK_USE" then
+        local recipes = {}
+        local src = WIT.cook_by_ingredient[WIT_NAME]
+        if src then
+            for _, r in ipairs(src) do table.insert(recipes, r) end
+        end
+        table.sort(recipes, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
         return recipes
     end
     return {}
@@ -1260,8 +1343,8 @@ function SelectCategory(cat, reset_page)
     end
 
     local recipes = GetCurrentRecipes()
-    -- U 模式烹饪：过滤 + 排序（带 pcall 保护）
-    if cat == "COOKING" and WIT_MODE == "USE" then
+    -- 烹饪用途：过滤 + 排序（带 pcall 保护）
+    if cat == "COOK_USE" then
         local ctx = WIT_COOK_CONTEXT
         local inv_counts = ctx and ctx.snapshot and ctx.snapshot.counts or {}
         local filtered = {}
@@ -1314,9 +1397,9 @@ function SelectCategory(cat, reset_page)
         WIT_CONTENT = WIT_POPUP:AddChild(Widget("c"))
         if WIT_CONTENT then WIT_CONTENT:SetPosition(0, 20) end
     end
-    if cat == "CRAFTING" then
+    if cat == "CRAFT_FROM" or cat == "CRAFT_USE" then
         RenderCards(recipes, 85, 90, RenderCardCrafting)
-    elseif cat == "COOKING" then
+    elseif cat == "COOK_FROM" or cat == "COOK_USE" then
         RenderCards(recipes, 85, 90, RenderCardCooking)
     elseif cat == "SOURCES" then
         RenderSources()
@@ -1329,12 +1412,7 @@ end
 -- 弹窗创建 (from wit_popup.lua)
 -- ============================
 
-local function _HasDecon(recipes)
-    for _, r in ipairs(recipes or {}) do if r.is_deconstruction_recipe then return true end end
-    return false
-end
-
-function CreatePopup(name, mode)
+function CreatePopup(name, mode, preferred_cat)
     BuildCookContext()
     -- 导航历史：上一次 ClosePopup 留下的条目入后退栈
     if WIT_PrevHistory then
@@ -1342,39 +1420,29 @@ function CreatePopup(name, mode)
         WIT_FORWARD_STACK = {}
     end
     WIT_PrevHistory = nil
-    WIT_NAME = name; WIT_MODE = mode; WIT_PAGE = 1
+    WIT_NAME = name; WIT_MODE = mode or "ITEM"; WIT_PAGE = 1
     WIT_HOVER_INFO = GetModConfigData("SHOW_HOVER_INFO")
 
     local avail_cats = {}
-    if mode == "SOURCE" then
-        if WIT.by_product[name] and (function()
-            for _, r in ipairs(WIT.by_product[name]) do if not r.is_deconstruction_recipe then return true end end
-            return false
-        end)() then table.insert(avail_cats, "CRAFTING") end
-        if WIT.cook_foods[name] then table.insert(avail_cats, "COOKING") end
-    else
-        if (WIT.by_material[name] and #WIT.by_material[name] > 0) or (WIT.by_product[name] and _HasDecon(WIT.by_product[name])) then table.insert(avail_cats, "CRAFTING") end
-        if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOKING") end
-    end
+    if _HasCraftFrom(name) or _HasCraftDeconSource(name) then table.insert(avail_cats, "CRAFT_FROM") end
+    if _HasCraftUse(name) then table.insert(avail_cats, "CRAFT_USE") end
+    if WIT.cook_foods[name] then table.insert(avail_cats, "COOK_FROM") end
+    if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOK_USE") end
+    if _HasLootSources(name) then table.insert(avail_cats, "SOURCES") end
     table.insert(avail_cats, "INFO")
-    -- R 模式下添加 SOURCES（获取来源）标签
-    if mode == "SOURCE" then
-        for ename, loots in pairs(WIT.entity_loot or {}) do
-            for _, l in ipairs(loots) do
-                if l.prefab == name then
-                    table.insert(avail_cats, "SOURCES")
-                    break
-                end
-            end
-            if avail_cats[#avail_cats] == "SOURCES" then break end
-        end
-    end
     if #avail_cats == 0 then return end
     WIT_AVAIL_CATS = avail_cats
 
-    local left_root = ThePlayer.HUD.controls.left_root
-    if left_root == nil then left_root = ThePlayer.HUD.controls end
-    WIT_POPUP = left_root:AddChild(Widget("WITPopup"))
+    local popup_root = nil
+    local active_screen = TheFrontEnd and TheFrontEnd.GetActiveScreen and TheFrontEnd:GetActiveScreen() or nil
+    local screen_name = active_screen and (tostring(active_screen.name or active_screen._name or "") .. " " .. tostring(active_screen)):lower() or ""
+    if active_screen ~= nil and screen_name:find("scrapbook", 1, true) then
+        popup_root = active_screen
+    else
+        popup_root = ThePlayer.HUD.controls.left_root
+        if popup_root == nil then popup_root = ThePlayer.HUD.controls end
+    end
+    WIT_POPUP = popup_root:AddChild(Widget("WITPopup"))
     if WIT_POPUP == nil then return end
 
     local crafting_hud = ThePlayer.HUD.controls.craftingmenu
@@ -1583,9 +1651,14 @@ function CreatePopup(name, mode)
     for i, cat in ipairs(WIT_AVAIL_CATS) do
         local tb = WIT_POPUP:AddChild(TextButton())
         if tb then
-            local label = (cat == "CRAFTING" and WIT_TXT.TAB_CRAFTING) or (cat == "COOKING" and WIT_TXT.TAB_COOKING) or (cat == "SOURCES" and WIT_TXT.TAB_SOURCES) or WIT_TXT.TAB_INFO
-            tb:SetText(label); tb:SetTextSize(26)
-            tb:SetPosition((i - (#WIT_AVAIL_CATS + 1) / 2) * 100, tab_y)
+            local label = (cat == "CRAFT_FROM" and (WIT_TXT.TAB_CRAFT_FROM or WIT_TXT.TAB_CRAFTING))
+                or (cat == "CRAFT_USE" and (WIT_TXT.TAB_CRAFT_USE or WIT_TXT.TAB_CRAFTING))
+                or (cat == "COOK_FROM" and (WIT_TXT.TAB_COOK_FROM or WIT_TXT.TAB_COOKING))
+                or (cat == "COOK_USE" and (WIT_TXT.TAB_COOK_USE or WIT_TXT.TAB_COOKING))
+                or (cat == "SOURCES" and WIT_TXT.TAB_SOURCES)
+                or WIT_TXT.TAB_INFO
+            tb:SetText(label); tb:SetTextSize(#WIT_AVAIL_CATS > 4 and 21 or 26)
+            tb:SetPosition((i - (#WIT_AVAIL_CATS + 1) / 2) * (#WIT_AVAIL_CATS > 4 and 72 or 100), tab_y)
             tb:SetOnClick(function() SelectCategory(cat, true) end)
             WIT_TAB_BTNS[cat] = tb
         end
@@ -1609,7 +1682,26 @@ function CreatePopup(name, mode)
         WIT_PG_NEXT:SetScale(0.4); WIT_PG_NEXT:SetPosition(40, pg_y); WIT_PG_NEXT:SetRotation(-90)
         WIT_PG_NEXT:SetOnClick(function() WIT_PAGE = WIT_PAGE + 1; SelectCategory(WIT_CUR_CAT, false) end)
     end
-    SelectCategory(WIT_AVAIL_CATS[1], true)
+    local initial_cat = preferred_cat
+    if initial_cat == nil then
+        local preferred_order = mode == "USE"
+            and { "CRAFT_FROM", "CRAFT_USE", "COOK_USE", "INFO" }
+            or { "CRAFT_FROM", "COOK_FROM", "SOURCES", "INFO" }
+        for _, wanted in ipairs(preferred_order) do
+            for _, cat in ipairs(WIT_AVAIL_CATS) do
+                if cat == wanted then
+                    initial_cat = wanted
+                    break
+                end
+            end
+            if initial_cat ~= nil then break end
+        end
+    end
+    local has_initial = false
+    for _, cat in ipairs(WIT_AVAIL_CATS) do
+        if cat == initial_cat then has_initial = true; break end
+    end
+    SelectCategory(has_initial and initial_cat or WIT_AVAIL_CATS[1], true)
     _PauseWorldForPopup()
 end
 
@@ -1621,7 +1713,7 @@ local function _NavGo(target_stack, source_stack)
     end
     -- 当前条目压入来源栈
     if WIT_NAME ~= nil then
-        table.insert(source_stack, { prefab = WIT_NAME, mode = WIT_MODE })
+        table.insert(source_stack, { prefab = WIT_NAME, mode = WIT_MODE, cat = WIT_CUR_CAT })
     end
     local entry = table.remove(target_stack)
     if entry == nil then
@@ -1631,7 +1723,7 @@ local function _NavGo(target_stack, source_stack)
     WIT_NAV_LOCK = true
     ClosePopup()
     WIT_NAV_LOCK = false
-    CreatePopup(entry.prefab, entry.mode)
+    CreatePopup(entry.prefab, entry.mode, entry.cat)
 end
 
 function WIT_NAV_BACK()
@@ -1665,7 +1757,7 @@ function WIT_DISPATCH_R()
         local name = item.prefab or "unknown"
         BuildIndexes()
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and WIT_MODE == "SOURCE" then ClosePopupAndResume(); return end
+            if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_FROM" or WIT_CUR_CAT == "COOK_FROM" or WIT_CUR_CAT == "SOURCES") then ClosePopupAndResume(); return end
             ClosePopup()
         end
         CreatePopup(name, "SOURCE")
@@ -1689,7 +1781,7 @@ function WIT_DISPATCH_U()
         local name = item.prefab or "unknown"
         BuildIndexes()
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and WIT_MODE == "USE" then ClosePopupAndResume(); return end
+            if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_USE" or WIT_CUR_CAT == "COOK_USE") then ClosePopupAndResume(); return end
             ClosePopup()
         end
         CreatePopup(name, "USE")
