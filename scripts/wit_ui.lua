@@ -1411,11 +1411,11 @@ function CreatePopup(name, mode, preferred_cat)
     WIT_HOVER_INFO = GetModConfigData("SHOW_HOVER_INFO")
 
     local avail_cats = {}
-    if _HasCraftFrom(name) or _HasCraftDeconSource(name) then table.insert(avail_cats, "CRAFT_FROM") end
-    if _HasCraftUse(name) then table.insert(avail_cats, "CRAFT_USE") end
-    if WIT.cook_foods[name] then table.insert(avail_cats, "COOK_FROM") end
-    if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOK_USE") end
     if _HasLootSources(name) then table.insert(avail_cats, "SOURCES") end
+    if _HasCraftFrom(name) or _HasCraftDeconSource(name) then table.insert(avail_cats, "CRAFT_FROM") end
+    if WIT.cook_foods[name] then table.insert(avail_cats, "COOK_FROM") end
+    if _HasCraftUse(name) then table.insert(avail_cats, "CRAFT_USE") end
+    if WIT.cook_by_ingredient[name] and #WIT.cook_by_ingredient[name] > 0 then table.insert(avail_cats, "COOK_USE") end
     table.insert(avail_cats, "INFO")
     if #avail_cats == 0 then return end
     WIT_AVAIL_CATS = avail_cats
@@ -1658,11 +1658,11 @@ function CreatePopup(name, mode, preferred_cat)
     for i, cat in ipairs(WIT_AVAIL_CATS) do
         local tb = WIT_POPUP:AddChild(TextButton())
         if tb then
-            local label = (cat == "CRAFT_FROM" and (WIT_TXT.TAB_CRAFT_FROM or WIT_TXT.TAB_CRAFTING))
-                or (cat == "CRAFT_USE" and (WIT_TXT.TAB_CRAFT_USE or WIT_TXT.TAB_CRAFTING))
+            local label =(cat == "SOURCES" and WIT_TXT.TAB_SOURCES)
+                or (cat == "CRAFT_FROM" and (WIT_TXT.TAB_CRAFT_FROM or WIT_TXT.TAB_CRAFTING))
                 or (cat == "COOK_FROM" and (WIT_TXT.TAB_COOK_FROM or WIT_TXT.TAB_COOKING))
+                or (cat == "CRAFT_USE" and (WIT_TXT.TAB_CRAFT_USE or WIT_TXT.TAB_CRAFTING))
                 or (cat == "COOK_USE" and (WIT_TXT.TAB_COOK_USE or WIT_TXT.TAB_COOKING))
-                or (cat == "SOURCES" and WIT_TXT.TAB_SOURCES)
                 or WIT_TXT.TAB_INFO
             tb:SetText(label); tb:SetTextSize(#WIT_AVAIL_CATS > 4 and 21 or 26)
             tb:SetPosition((i - (#WIT_AVAIL_CATS + 1) / 2) * (#WIT_AVAIL_CATS > 4 and 72 or 100), tab_y)
@@ -1692,8 +1692,8 @@ function CreatePopup(name, mode, preferred_cat)
     local initial_cat = preferred_cat
     if initial_cat == nil then
         local preferred_order = mode == "USE"
-            and { "CRAFT_FROM", "CRAFT_USE", "COOK_USE", "INFO" }
-            or { "CRAFT_FROM", "COOK_FROM", "SOURCES", "INFO" }
+            and { "CRAFT_USE","COOK_USE","SOURCES","CRAFT_FROM","COOK_FROM","INFO" }
+            or {"SOURCES","CRAFT_FROM","COOK_FROM", "CRAFT_USE", "COOK_USE", "INFO" }
         for _, wanted in ipairs(preferred_order) do
             for _, cat in ipairs(WIT_AVAIL_CATS) do
                 if cat == wanted then
@@ -1757,6 +1757,7 @@ function WIT_DISPATCH_R()
         if item == nil and WIT_POPUP == nil and WIT_HOVERED_DETAIL_PREFAB then
             item = { prefab = WIT_HOVERED_DETAIL_PREFAB }
         end
+        -- 图鉴面板按键也触发
         if item == nil then
             item = GetScrapbookSelectedItem()
         end
@@ -1766,10 +1767,20 @@ function WIT_DISPATCH_R()
         end
         local name = item.prefab or "unknown"
         BuildIndexes()
+        -- if WIT_POPUP ~= nil then
+        --     if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_FROM" or WIT_CUR_CAT == "COOK_FROM" or WIT_CUR_CAT == "SOURCES") then ClosePopupAndResume(); return end
+        --     ClosePopup()
+        -- end
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_FROM" or WIT_CUR_CAT == "COOK_FROM" or WIT_CUR_CAT == "SOURCES") then ClosePopupAndResume(); return end
-            ClosePopup()
+        -- 同一个物品由 R 打开的弹窗，再按 R 直接关闭
+        -- 不受当前所处标签影响
+            if WIT_NAME == name and WIT_MODE == "SOURCE" then
+                ClosePopupAndResume()
+            return
         end
+
+    ClosePopup()
+end
         CreatePopup(name, "SOURCE")
     end)
     if not ok then print("[WIT] R:", e) end
@@ -1793,10 +1804,20 @@ function WIT_DISPATCH_U()
         end
         local name = item.prefab or "unknown"
         BuildIndexes()
+        -- if WIT_POPUP ~= nil then
+        --     if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_USE" or WIT_CUR_CAT == "COOK_USE") then ClosePopupAndResume(); return end
+        --     ClosePopup()
+        -- end
         if WIT_POPUP ~= nil then
-            if WIT_NAME == name and (WIT_CUR_CAT == "CRAFT_USE" or WIT_CUR_CAT == "COOK_USE") then ClosePopupAndResume(); return end
-            ClosePopup()
+        -- 同一个物品由 U 打开的弹窗，再按 U 直接关闭
+        -- 不受当前所处标签影响
+            if WIT_NAME == name and WIT_MODE == "USE" then
+                ClosePopupAndResume()
+            return
         end
+
+    ClosePopup()
+end
         CreatePopup(name, "USE")
     end)
     if not ok then print("[WIT] U:", e) end
