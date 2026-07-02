@@ -54,14 +54,56 @@ local function _GetScrapbookTex(prefab)
     return entry and entry.tex or nil
 end
 
+-- 处理不显示的图片
+local WIT_ICON_OVERRIDES = {
+}
+
 local function ResolvePrefabIcon(prefab)
     if type(prefab) ~= "string" or prefab == "" then
-        return nil, nil
+        return nil, nil, false
     end
 
-    -- 优先使用图鉴指定的真实纹理名
     local entry = _GetScrapbookEntry(prefab)
 
+    print(
+        "[WIT ICON]",
+        "prefab =", tostring(prefab),
+        "entry =", tostring(entry ~= nil),
+        "tex =", tostring(entry and entry.tex or nil),
+        "type =", tostring(entry and entry.type or nil)
+    )
+       -- 冬季盛宴配方使用 fake prefab：
+    -- wintercooking_latkes → latkes
+    local icon_prefab = prefab:gsub("^wintercooking_", "")
+    -- 弹弓运行时变体统一使用基础弹弓图标
+    if icon_prefab:match("^slingshot%d*ex$") then
+        icon_prefab = "slingshot"
+    end
+    -- 万圣节疯狂科学实验：树根实验
+    if icon_prefab == "halloween_experiment_root" then
+        icon_prefab = "livingtree_root"
+    end
+    -- 1. 特殊图标硬编码
+    local override = WIT_ICON_OVERRIDES[icon_prefab]
+
+    if override ~= nil then
+        local atlas = override.atlas
+        local tex = override.tex
+
+        if atlas == nil and GLOBAL.GetScrapbookIconAtlas ~= nil then
+            atlas = GLOBAL.GetScrapbookIconAtlas(tex)
+        end
+
+        if atlas == nil then
+            atlas = GLOBAL.GetInventoryItemAtlas(tex, true)
+        end
+
+        if atlas ~= nil then
+            return atlas, tex, override.use_cc == true
+        end
+    end
+
+    -- 2. 图鉴记录
     if entry ~= nil
         and type(entry.tex) == "string"
         and entry.tex ~= "" then
@@ -77,20 +119,43 @@ local function ResolvePrefabIcon(prefab)
             atlas = GLOBAL.GetInventoryItemAtlas(tex, true)
         end
 
+        print(
+            "[WIT ICON RESULT]",
+            "prefab =", icon_prefab,
+            "atlas =", tostring(atlas),
+            "tex =", tex
+        )
+
         if atlas ~= nil then
-            return atlas, tex
+            return atlas, tex, false
         end
     end
 
-    -- 图鉴纹理不可用时，使用 prefab 同名库存图标
-    local tex = prefab .. ".tex"
-    local atlas = GLOBAL.GetInventoryItemAtlas(tex, true)
+    -- 3. 同名图鉴图标
+    local tex = icon_prefab .. ".tex"
+    local atlas = nil
 
-    if atlas ~= nil then
-        return atlas, tex
+    if GLOBAL.GetScrapbookIconAtlas ~= nil then
+        atlas = GLOBAL.GetScrapbookIconAtlas(tex)
     end
 
-    return nil, nil
+    -- 4. 同名库存图标
+    if atlas == nil then
+        atlas = GLOBAL.GetInventoryItemAtlas(tex, true)
+    end
+
+    print(
+        "[WIT ICON FALLBACK]",
+        "prefab =", icon_prefab,
+        "atlas =", tostring(atlas),
+        "tex =", tex
+    )
+
+    if atlas ~= nil then
+        return atlas, tex, false
+    end
+
+    return nil, nil, false
 end
 
 -- 图鉴 tex 名查询（兼容遗留调用）
@@ -558,16 +623,18 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
     end
 
     if disp_prefab then
-        local atlas, img_name = ResolvePrefabIcon(disp_prefab)
-
+        local atlas, img_name, use_cc = ResolvePrefabIcon(disp_prefab)
         if atlas ~= nil and img_name ~= nil then
-            local icon = slot.image:AddChild(
-                Image(atlas, img_name)
-            )
+    local icon = slot.image:AddChild(
+        Image(atlas, img_name)
+    )
+        if icon then
+            icon:SetSize(icon_size, icon_size)
 
-            if icon then
-                icon:SetSize(icon_size, icon_size)
+            if use_cc then
+                icon:SetEffect("shaders/ui_cc.ksh")
             end
+        end
         else
             local dispname = CN(disp_prefab) or disp_prefab
             local fb = slot.image:AddChild(
