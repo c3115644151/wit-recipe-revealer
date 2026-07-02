@@ -915,7 +915,7 @@ function RenderCardCrafting(r, card_y)
             spiderwhisperer="webber" }
         local char_prefab = char_map[r.builder_tag] or r.builder_tag
         local ca = GetInventoryItemAtlas(char_prefab .. ".tex")
-        if ca then table.insert(extra_icons, { atlas = ca, tex = char_prefab .. ".tex", tip = r.builder_tag }) end
+        if ca then table.insert(extra_icons, { atlas = ca, tex = char_prefab .. ".tex", tip = r.builder_tag, prefab = char_prefab }) end
     end
     if r.level then
         -- tech_map 格式：{ { level, prefab_or_prefabs }, ... }
@@ -1013,7 +1013,7 @@ function RenderCardCrafting(r, card_y)
             or (GLOBAL.GetScrapbookIconAtlas and GLOBAL.GetScrapbookIconAtlas("blueprint.tex"))
         if ba then
             local btip = (GLOBAL.STRINGS and GLOBAL.STRINGS.NAMES and GLOBAL.STRINGS.NAMES["BLUEPRINT"]) or "Blueprint"
-            table.insert(extra_icons, { atlas = ba, tex = "blueprint.tex", tip = btip })
+            table.insert(extra_icons, { atlas = ba, tex = "blueprint.tex", tip = btip, prefab = "blueprint" })
         end
     end
     if r.is_deconstruction_recipe then
@@ -1041,7 +1041,7 @@ function RenderCardCrafting(r, card_y)
                 if eimg then
                     eimg:SetSize(20, 20); eimg:SetPosition(ex, card_y + 30)
                     eimg:SetTooltip(CN(ei.tip) or ei.tip)
-                    local prefab = ei.tip
+                    local prefab = ei.prefab or ei.tip
                     eimg.OnMouseButton = function(_, button, down)
                         if not down and button == 0 then
                             BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
@@ -1070,7 +1070,7 @@ function RenderCardCrafting(r, card_y)
                         anim:SetScale(sc)
                         anim:SetPosition(ex + ox, card_y + 30 + oy)
                         anim:SetTooltip(CN(ei.tip) or ei.tip)
-                        local prefab = ei.tip
+                        local prefab = ei.prefab or ei.tip
                         anim.OnMouseButton = function(_, button, down)
                             if not down and button == 0 then
                                 BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
@@ -1092,7 +1092,7 @@ function RenderCardCrafting(r, card_y)
                             ftxt:SetHAlign(ANCHOR_MIDDLE)
                             ftxt:SetVAlign(ANCHOR_MIDDLE)
                         end
-                        local prefab = ei.tip
+                        local prefab = ei.prefab or ei.tip
                         fb.OnMouseButton = function(_, button, down)
                             if not down and button == 0 then
                                 BuildIndexes(); ClosePopup(); CreatePopup(prefab, "SOURCE")
