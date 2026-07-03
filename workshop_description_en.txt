@@ -11,15 +11,15 @@ Found an unfamiliar item and have no idea what it does? Standing at a cook pot w
 [list]
 [*] [b]R/U Key Lookup[/b] — Hover any item and press R to see all sources (crafting recipes, cooking recipes, loot drops), or U to see all uses (as a material or ingredient)
 [*] [b]Unified Popup with Six Tabs[/b] — Source and usage information merged into a single popup: Sources, Craft From, Cook From, Craft Use, Cook Use, and Info
-[*] [b]World Entity Query[/b] — R/U works on any in-game world entity (items on the ground, plants, minerals, creatures) by hovering your mouse over them
-[*] [b]Scrapbook R/U Query[/b] — Use R/U directly in the scrapbook screen; popup renders over the scrapbook with a dimmed background
+[*] [b]World Entity Query[/b] — R/U works on any in-game world entity (items on the ground, plants, minerals, creatures)
+[*] [b]Scrapbook R/U Query[/b] — Use R/U directly in the scrapbook screen
 [*] [b]Full Info Panel[/b] — Covers food stats (hunger/sanity/health), combat (damage/armor), equipment (durability/insulation), tools (efficiency), and more
-[*] [b]Cooking Conditions[/b] — Exact tag requirements displayed for every dish (Meat > 1, Monster = 0, No Veggies, etc.), sourced from the official Wiki
+[*] [b]Cooking Conditions[/b] — Exact tag requirements displayed for every dish (Meat > 1, Monster = 0, No Veggies, etc.)
 [*] [b]Crafting Menu Integration[/b] — Product and ingredient icons in the crafting detail panel support left/right click + hover R/U queries
 [*] [b]Entity Drop Sources[/b] — Shows every non-crafting acquisition method: loot drops, mining, chopping, picking, digging, hammer returns, with exact quantities
 [*] [b]Station & Blueprint Info[/b] — Recipe cards show required crafting stations (with 3D models), character exclusivity, blueprint/prototype indicators
 [*] [b]Cross-Navigation[/b] — Click any ingredient or product icon to drill deeper — left-click for source, right-click for usage
-[*] [b]Crafting Panel / Cook Pot Jump[/b] — Jump directly to a recipe in the crafting panel, or auto-fill ingredients into an open cook pot
+[*] [b]Crafting Panel / Cook Pot Jump[/b] — Jump directly to a recipe in the crafting panel
 [*] [b]Navigation History[/b] — Browse forward/backward through your viewing history using mouse side buttons (default); history clears on popup close
 [*] [b]Interactive Key Rebinding[/b] — Rebind keys directly from in-game and external config screens, also configurable in the native Controls page
 [*] [b]Single-Player Auto Pause[/b] — Optionally pause the world when opening the WIT popup in single-player
