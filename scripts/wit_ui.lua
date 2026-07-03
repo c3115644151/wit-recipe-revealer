@@ -55,8 +55,52 @@ local function _GetScrapbookTex(prefab)
 end
 
 -- 处理不显示的图片
-local WIT_ICON_OVERRIDES = {
+local WIT_ICON_PREFAB_ALIASES = {
 }
+
+-- 处理特殊命名prefab
+local function NormalizeIconPrefab(prefab)
+    if type(prefab) ~= "string"
+        or prefab == "" then
+        return prefab
+    end
+
+    local icon_prefab = prefab
+
+    -- 冬季盛宴：
+    -- wintercooking_latkes → latkes
+    icon_prefab = icon_prefab:gsub(
+        "^wintercooking_",
+        ""
+    )
+
+    --Wendy
+     icon_prefab = icon_prefab:gsub(
+        "^wendy_recipe_",
+        ""
+    )
+
+    -- 弹弓运行时变体：
+    -- slingshotex → slingshot
+    -- slingshot2ex → slingshot
+    if icon_prefab:match("^slingshot%d*ex$") then
+        icon_prefab = "slingshot"
+    end
+
+    -- 所有以 _blueprint 结尾的配方蓝图
+    -- recipe_blueprint → blueprint
+    -- 配方代码_blueprint → blueprint
+    if icon_prefab:match("_blueprint$") then
+        icon_prefab = "blueprint"
+    end
+
+    -- 其他明确别名
+    icon_prefab =
+        WIT_ICON_PREFAB_ALIASES[icon_prefab]
+        or icon_prefab
+
+    return icon_prefab
+end
 
 local function ResolvePrefabIcon(prefab)
     if type(prefab) ~= "string" or prefab == "" then
@@ -72,19 +116,8 @@ local function ResolvePrefabIcon(prefab)
         "tex =", tostring(entry and entry.tex or nil),
         "type =", tostring(entry and entry.type or nil)
     )
-       -- 冬季盛宴配方使用 fake prefab：
-    -- wintercooking_latkes → latkes
-    local icon_prefab = prefab:gsub("^wintercooking_", "")
-    -- 弹弓运行时变体统一使用基础弹弓图标
-    if icon_prefab:match("^slingshot%d*ex$") then
-        icon_prefab = "slingshot"
-    end
-    -- 万圣节疯狂科学实验：树根实验
-    if icon_prefab == "halloween_experiment_root" then
-        icon_prefab = "livingtree_root"
-    end
-    -- 1. 特殊图标硬编码
-    local override = WIT_ICON_OVERRIDES[icon_prefab]
+ 
+    local icon_prefab = NormalizeIconPrefab(prefab)
 
     if override ~= nil then
         local atlas = override.atlas
@@ -153,6 +186,34 @@ local function ResolvePrefabIcon(prefab)
 
     if atlas ~= nil then
         return atlas, tex, false
+    end
+
+    -- 5. 棋子草图兜底
+    -- 部分旧棋子草图没有独立 tex，实际使用通用 sketch 图标
+    if icon_prefab:match("^chesspiece_.+_sketch$") then
+        local sketch_tex = "sketch.tex"
+        local sketch_atlas = nil
+
+        if GLOBAL.GetScrapbookIconAtlas ~= nil then
+            sketch_atlas =
+                GLOBAL.GetScrapbookIconAtlas(
+                    sketch_tex
+                )
+        end
+
+        if sketch_atlas == nil
+            and GLOBAL.GetInventoryItemAtlas ~= nil then
+
+            sketch_atlas =
+                GLOBAL.GetInventoryItemAtlas(
+                    sketch_tex,
+                    true
+                )
+        end
+
+        if sketch_atlas ~= nil then
+            return sketch_atlas, sketch_tex, false
+        end
     end
 
     return nil, nil, false
