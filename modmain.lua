@@ -194,10 +194,11 @@ end)
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
     if orig_populate then
-        self.PopulateRecipeDetailPanel = function(s, recipe_name, ...)
-            local ret = orig_populate(s, recipe_name, ...)
-            if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
-                if WIT_NAME ~= recipe_name then
+        self.PopulateRecipeDetailPanel = function(s, recipe, ...)
+            local ret = orig_populate(s, recipe, ...)
+            if GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
+                local recipe_name = recipe and recipe.recipe and recipe.recipe.name
+                if type(recipe_name) == "string" and recipe_name ~= "" and WIT_NAME ~= recipe_name then
                     BuildIndexes()
                     ClosePopup()
                     CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
