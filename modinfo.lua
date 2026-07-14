@@ -1,7 +1,7 @@
 name = "[JEI] What Is This"
-description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.4.1] 合成菜单左键/右键/R/U键可指定默认页签；热重载支持；配方网格点击自动跳转。\n[v1.4.1] Left-click/right-click/R/U now configurable to open any default tab; hot reload support; auto-switch on recipe grid click."
+description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.4.2] 合成菜单左键/右键/R/U键可指定默认页签；热重载支持；配方网格点击自动跳转。\n[v1.4.2] Left-click/right-click/R/U now configurable to open any default tab; hot reload support; auto-switch on recipe grid click.\n[v1.4.3] 修复部分物品图标在弹窗中无法显示的问题。\n[v1.4.3] Fixed an issue where some item icons wouldn't display in the popup."
 author = "凝筝"
-version = "1.4.2"
+version = "1.4.3"
 api_version = 10
 client_only_mod = true
 dst_compatible = true
