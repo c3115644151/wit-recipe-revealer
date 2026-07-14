@@ -386,10 +386,26 @@ end
 -- ============================
 -- 来源索引构建 (SOURCES tab data)
 -- ============================
--- WIT.entity_loot[entity_prefab] = { {prefab, count, chance, type}, ... }
+-- 双向来源索引：
+--   by_entity[source_prefab] = { {prefab, count, chance, type}, ... }  （正向：实体 -> 掉落物）
+--   by_product[item_prefab]  = { {source=..., loot=...}, ... }          （反向：掉落物 -> 来源实体）
 -- 数据来源：图鉴数据 deps + GLOBAL.LootTables（含概率）
 -- 不硬编码、不主动 SpawnPrefab、不运行时钩子
-WIT.entity_loot = {}
+WIT.source_index = { by_entity = {}, by_product = {} }
+
+-- 统一注册入口：同时写入正向与反向索引
+local function RegisterSourceLoot(source, loots)
+    if loots == nil or #loots == 0 then return end
+    WIT.source_index.by_entity[source] = loots
+    for _, loot in ipairs(loots) do
+        local list = WIT.source_index.by_product[loot.prefab]
+        if list == nil then
+            list = {}
+            WIT.source_index.by_product[loot.prefab] = list
+        end
+        table.insert(list, { source = source, loot = loot })
+    end
+end
 
 -- 将 scrapbook entry 的 workable/pickable/type 映射为来源类型
 -- 只对真正有"产出"的实体类型归类，排斥纯物品和食物
@@ -410,6 +426,173 @@ local function _ResolveSourceType(entry)
     if entry.workable == "HAMMER" then return "hammer" end
     return "drop"
 end
+
+-- ============================
+-- 来源解析器（按优先级顺序尝试）
+-- ============================
+
+-- SetLoot 特例表：使用 inst.components.lootdropper:SetLoot 的实体
+-- 数据不进入 GLOBAL.LootTables，scrapbook deps 又只列一次丢失实际数量
+local SETLOOT_LOOT = {
+    koalefant_summer = { { prefab = "meat", count = 8 }, { prefab = "trunk_summer", count = 1 } },
+    koalefant_winter = { { prefab = "meat", count = 8 }, { prefab = "trunk_winter", count = 1 } },
+    tallbird = { { prefab = "meat", count = 2 } },
+    grassgator = { { prefab = "plantmeat", count = 7 }, { prefab = "cutgrass", count = 2 }, { prefab = "twigs", count = 2 } },
+    leif = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
+    leif_sparse = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
+    spiderqueen = { { prefab = "monstermeat", count = 4 }, { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 }, { prefab = "spiderhat", count = 1 } },
+    perd = { { prefab = "drumstick", count = 2 } },
+    pigman = { { prefab = "meat", count = 2 }, { prefab = "pigskin", count = 1 } },
+    beehive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
+    wasphive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
+    hotspring = { { prefab = "moonglass", count = 5 } },
+    pigtorch = { { prefab = "log", count = 3 }, { prefab = "poop", count = 1 } },
+    mermking = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 }, { prefab = "kelp", count = 4 } },
+    gnarwail = { { prefab = "fishmeat", count = 4 } },
+    rocky = { { prefab = "rocks", count = 2 }, { prefab = "meat", count = 1 }, { prefab = "flint", count = 2 } },
+    babybeefalo = { { prefab = "smallmeat", count = 3 }, { prefab = "beefalowool", count = 1 } },
+    bunnyman = { { prefab = "smallmeat", count = 1 } },
+    beardlord = { { prefab = "beardhair", count = 2 }, { prefab = "monstermeat", count = 1 } },
+    spiderden = { { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 } },
+    livingtree = { { prefab = "livinglog", count = 2 } },
+    gingerbreadpig = { { prefab = "wintersfeastfuel", count = 1 }, { prefab = "crumbs", count = 3 } },
+    cave_entrance = { { prefab = "rocks", count = 2 }, { prefab = "flint", count = 3 } },
+    resurrectionstone = { { prefab = "rocks", count = 2 }, { prefab = "marble", count = 2 }, { prefab = "nightmarefuel", count = 1 } },
+    oceantree_pillar = { { prefab = "log", count = 4 }, { prefab = "twigs", count = 3 } },
+    fence = { { prefab = "twigs", count = 1 } },
+    perdshrine = { { prefab = "ash", count = 1 } },
+    frog = { { prefab = "froglegs", count = 1 } },
+    mole = { { prefab = "smallmeat", count = 1 } },
+    smallbird = { { prefab = "smallmeat", count = 1 } },
+    ghost = { { prefab = "nightmarefuel", count = 1 } },
+    knight = { { prefab = "gears", count = 1 } },
+    bishop = { { prefab = "gears", count = 1 } },
+    rook = { { prefab = "gears", count = 1 } },
+    nightmarecreature = { { prefab = "nightmarefuel", count = 1 } },
+    merm = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
+    mermguard = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
+    monkey = { { prefab = "smallmeat", count = 1 }, { prefab = "cave_banana", count = 1 } },
+    rabbit = { { prefab = "smallmeat", count = 1 } },
+    rock_avocado_fruit = { { prefab = "rock_avocado_fruit_sprout", count = 1 } },
+    moondial = { { prefab = "moonglass", count = 1 } },
+    rubble = { { prefab = "rocks", count = 1 } },
+    driftwood_trees = { { prefab = "charcoal", count = 1 } },
+    marsh_tree = { { prefab = "charcoal", count = 1 } },
+    statueruins = { { prefab = "thulecite", count = 1 } },
+    lureplant = { { prefab = "lureplantbulb", count = 1 } },
+    decor_flowervase = { { prefab = "spoiled_food", count = 1 } },
+    endtable = { { prefab = "spoiled_food", count = 1 } },
+    canary_poisoned = { { prefab = "spoiled_food", count = 1 } },
+    lunarthrall_plant = { { prefab = "lunarplant_husk", count = 2 }, { prefab = "plantmeat", count = 2 } },
+    dragonfly_chest = { { prefab = "alterguardianhatshard", count = 1 } },
+    shadowcreature = { { prefab = "nightmarefuel", count = 1 } },
+    oceanshadowcreature = { { prefab = "nightmarefuel", count = 1 } },
+}
+
+-- Resolver 1：GLOBAL.LootTables（含精确概率，来源可靠）
+local function ResolveLootTableSource(entry, prefab)
+    local lt = GLOBAL.LootTables and GLOBAL.LootTables[prefab]
+    if lt == nil or #lt == 0 then return nil end
+
+    local src_type = _ResolveSourceType(entry)
+    -- 合并同一 prefab 的多次掉落（DST 用重复条目表示数量）
+    local merged = {}
+    for _, v in ipairs(lt) do
+        local prod, chance = v[1], v[2]
+        if prod and chance and chance > 0 then
+            if merged[prod] == nil then merged[prod] = {} end
+            table.insert(merged[prod], chance)
+        end
+    end
+    local loots = {}
+    for prod, chances in pairs(merged) do
+        local guaranteed = 0
+        for _, c in ipairs(chances) do
+            if c >= 1.0 then guaranteed = guaranteed + 1
+            else table.insert(loots, { prefab = prod, count = 1, chance = c, type = src_type }) end
+        end
+        if guaranteed > 0 then
+            table.insert(loots, { prefab = prod, count = guaranteed, chance = 1.0, type = src_type })
+        end
+    end
+    if #loots == 0 then return nil end
+    return loots
+end
+
+-- Resolver 2：SetLoot 特例（使用 inst.components.lootdropper:SetLoot 的实体）
+local function ResolveSetLootSource(entry, prefab)
+    local sll = SETLOOT_LOOT[prefab]
+    if sll == nil then return nil end
+
+    local src_type = _ResolveSourceType(entry)
+    local loots = {}
+    for _, item in ipairs(sll) do
+        table.insert(loots, { prefab = item.prefab, count = item.count, chance = 1.0, type = src_type })
+    end
+    if #loots == 0 then return nil end
+    return loots
+end
+
+-- Resolver 3：锤拆返还（可制作建筑被锤拆后返还 50% 制作材料，四舍五入取整）
+local function ResolveHammerRefundSource(entry, prefab)
+    if not (GLOBAL.AllRecipes[prefab] and _ResolveSourceType(entry) == "hammer") then return nil end
+
+    local recipe = GLOBAL.AllRecipes[prefab]
+    local loots = {}
+    for _, ing in ipairs(recipe.ingredients or {}) do
+        local ing_type = type(ing) == "table" and ing.type or ing
+        local ing_amount = type(ing) == "table" and (ing.amount or 1) or 1
+        if type(ing_type) == "string" and ing_type ~= "" then
+            local count = math.max(1, math.floor(ing_amount * 0.5 + 0.5))
+            table.insert(loots, { prefab = ing_type, count = count, chance = 1.0, type = "hammer" })
+        end
+    end
+    if #loots == 0 then return nil end
+    return loots
+end
+
+-- Resolver 4：deps 回退（无 LootTables 时使用，合并重复的固定掉落）
+-- cooker_outputs 用于过滤 HAMMER/cooker 类容器实体的反向依赖
+-- （这类 deps 通常是"在自己内部做的东西"而不是"被自己锤击后掉落的东西"）
+local function ResolveDepsSource(entry, prefab, cooker_outputs)
+    if not (entry.deps and type(entry.deps) == "table" and #entry.deps > 0 and _IsSourceEntity(entry)) then
+        return nil
+    end
+
+    local src_type = _ResolveSourceType(entry)
+    local filtered_deps = {}
+    if src_type == "hammer" and cooker_outputs[prefab] then
+        local outputs = {}
+        for _, f in ipairs(cooker_outputs[prefab]) do outputs[f] = true end
+        for _, dep in ipairs(entry.deps) do
+            if type(dep) == "string" and not outputs[dep] then
+                table.insert(filtered_deps, dep)
+            end
+        end
+    else
+        for _, dep in ipairs(entry.deps) do
+            if type(dep) == "string" then table.insert(filtered_deps, dep) end
+        end
+    end
+    local merged = {}
+    for _, dep in ipairs(filtered_deps) do
+        merged[dep] = (merged[dep] or 0) + 1
+    end
+    local loots = {}
+    for dep, count in pairs(merged) do
+        table.insert(loots, { prefab = dep, count = count, type = src_type })
+    end
+    if #loots == 0 then return nil end
+    return loots
+end
+
+-- 解析器调度顺序：优先用精确数据，最后才回退到 deps
+local SOURCE_RESOLVERS = {
+    ResolveLootTableSource,
+    ResolveSetLootSource,
+    ResolveHammerRefundSource,
+    ResolveDepsSource,
+}
 
 function BuildSourceIndexes()
     local scrap_data_ok, scrap_data = pcall(GLOBAL.require, "screens/redux/scrapbookdata")
@@ -436,160 +619,17 @@ function BuildSourceIndexes()
     for _, entry in pairs(scrap_data) do
         if type(entry) == "table" and entry.prefab and entry.tex then
             local prefab = entry.prefab
-
-            -- 优先用 GLOBAL.LootTables（含精确概率，来源可靠）
-            local lt = GLOBAL.LootTables and GLOBAL.LootTables[prefab]
-            if lt and #lt > 0 then
-                local src_type = _ResolveSourceType(entry)
-                -- 合并同一 prefab 的多次掉落（DST 用重复条目表示数量）
-                local merged = {}
-                for _, v in ipairs(lt) do
-                    local prod, chance = v[1], v[2]
-                    if prod and chance and chance > 0 then
-                        if not merged[prod] then merged[prod] = {} end
-                        table.insert(merged[prod], chance)
-                    end
+            for _, resolver in ipairs(SOURCE_RESOLVERS) do
+                local loots = resolver(entry, prefab, cooker_outputs)
+                if loots then
+                    RegisterSourceLoot(prefab, loots)
+                    break
                 end
-                local loots = {}
-                for prod, chances in pairs(merged) do
-                    local guaranteed = 0
-                    for _, c in ipairs(chances) do
-                        if c >= 1.0 then guaranteed = guaranteed + 1
-                        else table.insert(loots, { prefab = prod, count = 1, chance = c, type = src_type }) end
-                    end
-                    if guaranteed > 0 then
-                        table.insert(loots, { prefab = prod, count = guaranteed, chance = 1.0, type = src_type })
-                    end
-                end
-                if #loots > 0 then WIT.entity_loot[prefab] = loots end
-            elseif ({ koalefant_summer = true, koalefant_winter = true, tallbird = true, grassgator = true,
-                leif = true, leif_sparse = true, spiderqueen = true, perd = true, pigman = true,
-                beehive = true, wasphive = true, hotspring = true, pigtorch = true,
-                mermking = true, gnarwail = true, rocky = true, babybeefalo = true,
-                bunnyman = true, beardlord = true, spiderden = true, livingtree = true,
-                gingerbreadpig = true, cave_entrance = true, resurrectionstone = true,
-                oceantree_pillar = true, fence = true, perdshrine = true, frog = true,
-                mole = true, smallbird = true, ghost = true, knight = true,
-                bishop = true, rook = true, nightmarecreature = true,
-                merm = true, mermguard = true, monkey = true, rabbit = true,
-                rock_avocado_fruit = true, moon_altar = true, moon_altar_pieces = true,
-                moondial = true, rubble = true, driftwood_trees = true,
-                marsh_tree = true, statueruins = true, lureplant = true,
-                decor_flowervase = true, endtable = true, canary_poisoned = true,
-                lunarthrall_plant = true, iceboxtest = true, dragonfly_chest = true,
-                shadowcreature = true, oceanshadowcreature = true })[prefab] then
-                -- SetLoot 修正：使用 inst.components.lootdropper:SetLoot 的实体
-                -- 数据不进入 GLOBAL.LootTables，scrapbook deps 又只列一次丢失实际数量
-                local SETLOOT_LOOT = {
-                    koalefant_summer = { { prefab = "meat", count = 8 }, { prefab = "trunk_summer", count = 1 } },
-                    koalefant_winter = { { prefab = "meat", count = 8 }, { prefab = "trunk_winter", count = 1 } },
-                    tallbird = { { prefab = "meat", count = 2 } },
-                    grassgator = { { prefab = "plantmeat", count = 7 }, { prefab = "cutgrass", count = 2 }, { prefab = "twigs", count = 2 } },
-                    leif = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
-                    leif_sparse = { { prefab = "livinglog", count = 6 }, { prefab = "monstermeat", count = 1 } },
-                    spiderqueen = { { prefab = "monstermeat", count = 4 }, { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 }, { prefab = "spiderhat", count = 1 } },
-                    perd = { { prefab = "drumstick", count = 2 } },
-                    pigman = { { prefab = "meat", count = 2 }, { prefab = "pigskin", count = 1 } },
-                    beehive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
-                    wasphive = { { prefab = "honey", count = 3 }, { prefab = "honeycomb", count = 1 } },
-                    hotspring = { { prefab = "moonglass", count = 5 } },
-                    pigtorch = { { prefab = "log", count = 3 }, { prefab = "poop", count = 1 } },
-                    mermking = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 }, { prefab = "kelp", count = 4 } },
-                    gnarwail = { { prefab = "fishmeat", count = 4 } },
-                    rocky = { { prefab = "rocks", count = 2 }, { prefab = "meat", count = 1 }, { prefab = "flint", count = 2 } },
-                    babybeefalo = { { prefab = "smallmeat", count = 3 }, { prefab = "beefalowool", count = 1 } },
-                    bunnyman = { { prefab = "smallmeat", count = 1 } },
-                    beardlord = { { prefab = "beardhair", count = 2 }, { prefab = "monstermeat", count = 1 } },
-                    spiderden = { { prefab = "silk", count = 4 }, { prefab = "spidereggsack", count = 1 } },
-                    livingtree = { { prefab = "livinglog", count = 2 } },
-                    gingerbreadpig = { { prefab = "wintersfeastfuel", count = 1 }, { prefab = "crumbs", count = 3 } },
-                    cave_entrance = { { prefab = "rocks", count = 2 }, { prefab = "flint", count = 3 } },
-                    resurrectionstone = { { prefab = "rocks", count = 2 }, { prefab = "marble", count = 2 }, { prefab = "nightmarefuel", count = 1 } },
-                    oceantree_pillar = { { prefab = "log", count = 4 }, { prefab = "twigs", count = 3 } },
-                    fence = { { prefab = "twigs", count = 1 } },
-                    perdshrine = { { prefab = "ash", count = 1 } },
-                    frog = { { prefab = "froglegs", count = 1 } },
-                    mole = { { prefab = "smallmeat", count = 1 } },
-                    smallbird = { { prefab = "smallmeat", count = 1 } },
-                    ghost = { { prefab = "nightmarefuel", count = 1 } },
-                    knight = { { prefab = "gears", count = 1 } },
-                    bishop = { { prefab = "gears", count = 1 } },
-                    rook = { { prefab = "gears", count = 1 } },
-                    nightmarecreature = { { prefab = "nightmarefuel", count = 1 } },
-                    merm = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
-                    mermguard = { { prefab = "pondfish", count = 1 }, { prefab = "froglegs", count = 1 } },
-                    monkey = { { prefab = "smallmeat", count = 1 }, { prefab = "cave_banana", count = 1 } },
-                    rabbit = { { prefab = "smallmeat", count = 1 } },
-                    rock_avocado_fruit = { { prefab = "rock_avocado_fruit_sprout", count = 1 } },
-                    moondial = { { prefab = "moonglass", count = 1 } },
-                    rubble = { { prefab = "rocks", count = 1 } },
-                    driftwood_trees = { { prefab = "charcoal", count = 1 } },
-                    marsh_tree = { { prefab = "charcoal", count = 1 } },
-                    statueruins = { { prefab = "thulecite", count = 1 } },
-                    lureplant = { { prefab = "lureplantbulb", count = 1 } },
-                    decor_flowervase = { { prefab = "spoiled_food", count = 1 } },
-                    endtable = { { prefab = "spoiled_food", count = 1 } },
-                    canary_poisoned = { { prefab = "spoiled_food", count = 1 } },
-                    lunarthrall_plant = { { prefab = "lunarplant_husk", count = 2 }, { prefab = "plantmeat", count = 2 } },
-                    dragonfly_chest = { { prefab = "alterguardianhatshard", count = 1 } },
-                    shadowcreature = { { prefab = "nightmarefuel", count = 1 } },
-                    oceanshadowcreature = { { prefab = "nightmarefuel", count = 1 } },
-                }
-                local sll = SETLOOT_LOOT[prefab]
-                if sll then
-                    local src_type = _ResolveSourceType(entry)
-                    local loots = {}
-                    for _, item in ipairs(sll) do
-                        table.insert(loots, { prefab = item.prefab, count = item.count, chance = 1.0, type = src_type })
-                    end
-                    if #loots > 0 then WIT.entity_loot[prefab] = loots end
-                end
-            elseif GLOBAL.AllRecipes[prefab] and _ResolveSourceType(entry) == "hammer" then
-                -- 锤拆返还：可制作建筑被锤拆后返还 50% 制作材料（四舍五入取整）
-                local recipe = GLOBAL.AllRecipes[prefab]
-                local loots = {}
-                for _, ing in ipairs(recipe.ingredients or {}) do
-                    local ing_type = type(ing) == "table" and ing.type or ing
-                    local ing_amount = type(ing) == "table" and (ing.amount or 1) or 1
-                    if type(ing_type) == "string" and ing_type ~= "" then
-                        local count = math.max(1, math.floor(ing_amount * 0.5 + 0.5))
-                        table.insert(loots, { prefab = ing_type, count = count, chance = 1.0, type = "hammer" })
-                    end
-                end
-                if #loots > 0 then WIT.entity_loot[prefab] = loots end
-            elseif entry.deps and type(entry.deps) == "table" and #entry.deps > 0 and _IsSourceEntity(entry) then
-                -- 无 LootTables 时使用 deps，合并重复的固定掉落
-                -- 通用规则：若该实体是某个 cooking station 类型（HAMMER 容器类），
-                -- 过滤掉"作为该 station 产物"的反向依赖，避免把"内部能做的菜肴"当作"锤击掉落"
-                local src_type = _ResolveSourceType(entry)
-                local filtered_deps = {}
-                if src_type == "hammer" and cooker_outputs[prefab] then
-                    local outputs = {}
-                    for _, f in ipairs(cooker_outputs[prefab]) do outputs[f] = true end
-                    for _, dep in ipairs(entry.deps) do
-                        if type(dep) == "string" and not outputs[dep] then
-                            table.insert(filtered_deps, dep)
-                        end
-                    end
-                else
-                    for _, dep in ipairs(entry.deps) do
-                        if type(dep) == "string" then table.insert(filtered_deps, dep) end
-                    end
-                end
-                local merged = {}
-                for _, dep in ipairs(filtered_deps) do
-                    merged[dep] = (merged[dep] or 0) + 1
-                end
-                local loots = {}
-                for dep, count in pairs(merged) do
-                    table.insert(loots, { prefab = dep, count = count, type = src_type })
-                end
-                if #loots > 0 then WIT.entity_loot[prefab] = loots end
             end
         end
     end
 
-    local count = 0; for _ in pairs(WIT.entity_loot) do count = count + 1 end
+    local count = 0; for _ in pairs(WIT.source_index.by_entity) do count = count + 1 end
     print("[WIT] BuildSourceIndexes done, entities:", count)
 end
 

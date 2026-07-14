@@ -692,16 +692,20 @@ function MakeSlot(parent, prefab, x, y, need_amount, highlight, slot_size, icon_
 
     if disp_prefab ~= nil and ThePlayer ~= nil then
         slot:SetOnClick(function()
+            local tab = GetModConfigData("LCLICK_QUERY_TAB")
+            if tab == "disabled" then return end
             BuildIndexes()
             ClosePopup()
-            CreatePopup(disp_prefab, "SOURCE")
+            CreatePopup(disp_prefab, "SOURCE", tab)
         end)
         local orig_oc = slot.OnControl
         slot.OnControl = function(btn, control, down)
             if down and control == CONTROL_SECONDARY then
+                local tab = GetModConfigData("RCLICK_QUERY_TAB")
+                if tab == "disabled" then return end
                 BuildIndexes()
                 ClosePopup()
-                CreatePopup(disp_prefab, "USE")
+                CreatePopup(disp_prefab, "USE", tab)
                 return true
             end
             return orig_oc(btn, control, down)
@@ -859,13 +863,16 @@ function RenderSources()
     if WIT_CONTENT == nil then return end
     WIT_CONTENT:KillAllChildren()
 
-    -- 扫描 WIT.entity_loot，找出包含当前物品的实体
+    -- 直接读取反向索引：当前物品 -> 来源实体列表
     local matched = {}
-    for ename, loots in pairs(WIT.entity_loot or {}) do
-        for _, l in ipairs(loots) do
-            if l.prefab == WIT_NAME then
-                table.insert(matched, { source = ename, loots = loots })
-                break
+    local src_list = WIT.source_index and WIT.source_index.by_product[WIT_NAME]
+    if src_list then
+        -- by_product 可能含同一来源的多条记录，按来源去重并收集完整 loots
+        local seen_source = {}
+        for _, item in ipairs(src_list) do
+            if not seen_source[item.source] then
+                seen_source[item.source] = true
+                table.insert(matched, { source = item.source, loots = WIT.source_index.by_entity[item.source] })
             end
         end
     end
@@ -1450,12 +1457,8 @@ local function _HasCraftDeconSource(name)
 end
 
 local function _HasLootSources(name)
-    for _, loots in pairs(WIT.entity_loot or {}) do
-        for _, l in ipairs(loots) do
-            if l.prefab == name then return true end
-        end
-    end
-    return false
+    local list = WIT.source_index and WIT.source_index.by_product[name]
+    return list ~= nil and #list > 0
 end
 
 function HasData(name, mode)
@@ -1717,7 +1720,6 @@ function CreatePopup(name, mode, preferred_cat)
     end
     -- 标题图标（与内容区 MakeSlot 同款交互：左键→来源 / 右键→用途）
     local icon_atlas, icon_tex = ResolvePrefabIcon(name)
-
     local title_slot = WIT_POPUP:AddChild(
         ImageButton(
             icon_atlas or CRAFTING_ATLAS,
@@ -1731,12 +1733,16 @@ function CreatePopup(name, mode, preferred_cat)
         title_slot:SetTooltip(dispname)
         local cur_name = WIT_NAME
         title_slot:SetOnClick(function()
-            BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "SOURCE")
+            local tab = GetModConfigData("LCLICK_QUERY_TAB")
+            if tab == "disabled" then return end
+            BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "SOURCE", tab)
         end)
         local orig_oc = title_slot.OnControl
         title_slot.OnControl = function(btn, control, down)
             if down and control == CONTROL_SECONDARY then
-                BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "USE")
+                local tab = GetModConfigData("RCLICK_QUERY_TAB")
+                if tab == "disabled" then return end
+                BuildIndexes(); ClosePopup(); CreatePopup(cur_name, "USE", tab)
                 return true
             end
             return orig_oc(btn, control, down)
@@ -1841,13 +1847,43 @@ function CreatePopup(name, mode, preferred_cat)
                 elseif opt.name == "CRAFTING_DETAIL_LCLICK" then
                     opt.label = WIT_TXT.CFG_DETAIL_LCLICK_LABEL
                     opt.hover = WIT_TXT.CFG_DETAIL_LCLICK_HOVER
-                    opt.options[1].description = WIT_TXT.CFG_ON
-                    opt.options[2].description = WIT_TXT.CFG_OFF
+                    opt.options[1].description = WIT_TXT.TAB_DISABLED
+                    opt.options[2].description = WIT_TXT.TAB_SOURCES
+                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
+                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
+                    opt.options[6].description = WIT_TXT.TAB_COOK_USE
+                    opt.options[7].description = WIT_TXT.TAB_INFO
                 elseif opt.name == "CRAFTING_DETAIL_RCLICK" then
                     opt.label = WIT_TXT.CFG_DETAIL_RCLICK_LABEL
                     opt.hover = WIT_TXT.CFG_DETAIL_RCLICK_HOVER
-                    opt.options[1].description = WIT_TXT.CFG_ON
-                    opt.options[2].description = WIT_TXT.CFG_OFF
+                    opt.options[1].description = WIT_TXT.TAB_DISABLED
+                    opt.options[2].description = WIT_TXT.TAB_SOURCES
+                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
+                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
+                    opt.options[6].description = WIT_TXT.TAB_COOK_USE
+                    opt.options[7].description = WIT_TXT.TAB_INFO
+                elseif opt.name == "LCLICK_QUERY_TAB" then
+                    opt.label = WIT_TXT.CFG_POPUP_LCLICK_LABEL
+                    opt.hover = WIT_TXT.CFG_POPUP_LCLICK_HOVER
+                    opt.options[1].description = WIT_TXT.TAB_DISABLED
+                    opt.options[2].description = WIT_TXT.TAB_SOURCES
+                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
+                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
+                    opt.options[6].description = WIT_TXT.TAB_COOK_USE
+                    opt.options[7].description = WIT_TXT.TAB_INFO
+                elseif opt.name == "RCLICK_QUERY_TAB" then
+                    opt.label = WIT_TXT.CFG_POPUP_RCLICK_LABEL
+                    opt.hover = WIT_TXT.CFG_POPUP_RCLICK_HOVER
+                    opt.options[1].description = WIT_TXT.TAB_DISABLED
+                    opt.options[2].description = WIT_TXT.TAB_SOURCES
+                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
+                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
+                    opt.options[6].description = WIT_TXT.TAB_COOK_USE
+                    opt.options[7].description = WIT_TXT.TAB_INFO
                 elseif opt.name == "AUTO_PAUSE_UI" then
                     opt.label = WIT_TXT.CFG_PAUSE_LABEL
                     opt.hover = WIT_TXT.CFG_PAUSE_HOVER
@@ -2043,9 +2079,9 @@ function WIT_DISPATCH_R()
                 return
             end
 
-            ClosePopup()
-        end
-        CreatePopup(name, "SOURCE")
+    ClosePopup()
+end
+        CreatePopup(name, "SOURCE", GetModConfigData("LCLICK_QUERY_TAB"))
     end)
     if not ok then print("[WIT] R:", e) end
 end
@@ -2088,9 +2124,9 @@ function WIT_DISPATCH_U()
                 return
             end
 
-            ClosePopup()
-        end
-        CreatePopup(name, "USE")
+    ClosePopup()
+end
+        CreatePopup(name, "USE", GetModConfigData("RCLICK_QUERY_TAB"))
     end)
     if not ok then print("[WIT] U:", e) end
 end
