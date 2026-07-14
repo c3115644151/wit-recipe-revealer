@@ -67,17 +67,6 @@ AddGlobalClassPostConstruct("entityscript", "EntityScript", function(self)
             end
         end
     end
-    -- 配方网格点击自动跳转 WIT（仅 WIT 弹窗已打开时生效）
-    local orig_populate = self.PopulateRecipeDetailPanel
-    self.PopulateRecipeDetailPanel = function(s, recipe_name, ...)
-        local ret = orig_populate(s, recipe_name, ...)
-        if WIT_POPUP ~= nil and WIT_NAME ~= recipe_name then
-            BuildIndexes()
-            ClosePopup()
-            CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
-        end
-        return ret
-    end
 end)
 
 -- ============================
@@ -196,6 +185,17 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
         local ret = orig_close(s, ...)
         if WIT_POPUP ~= nil then
             WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(405, 35, 0), 0.25)
+        end
+        return ret
+    end
+    -- 配方网格点击自动跳转 WIT（仅 WIT 弹窗已打开时生效）
+    local orig_populate = self.PopulateRecipeDetailPanel
+    self.PopulateRecipeDetailPanel = function(s, recipe_name, ...)
+        local ret = orig_populate(s, recipe_name, ...)
+        if WIT_POPUP ~= nil and WIT_NAME ~= recipe_name then
+            BuildIndexes()
+            ClosePopup()
+            CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
         end
         return ret
     end
