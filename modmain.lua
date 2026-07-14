@@ -188,16 +188,23 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
         end
         return ret
     end
-    -- 配方网格点击自动跳转 WIT（仅 WIT 弹窗已打开时生效）
+end)
+
+-- 配方网格点击自动跳转 WIT（不再要求 UI 已打开）
+AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
-    self.PopulateRecipeDetailPanel = function(s, recipe_name, ...)
-        local ret = orig_populate(s, recipe_name, ...)
-        if WIT_POPUP ~= nil and WIT_NAME ~= recipe_name then
-            BuildIndexes()
-            ClosePopup()
-            CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
+    if orig_populate then
+        self.PopulateRecipeDetailPanel = function(s, recipe_name, ...)
+            local ret = orig_populate(s, recipe_name, ...)
+            if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
+                if WIT_NAME ~= recipe_name then
+                    BuildIndexes()
+                    ClosePopup()
+                    CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
+                end
+            end
+            return ret
         end
-        return ret
     end
 end)
 
