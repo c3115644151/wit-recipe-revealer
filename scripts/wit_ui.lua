@@ -312,6 +312,8 @@ WIT_PAGE_SIZE = 3
 local WIT_UI_PAUSED_WORLD = false
 local WIT_PAUSE_TASK = nil -- 延迟暂停的任务句柄，_ResumeWorldForPopup 中取消
 local WIT_NAV_LOCK = false -- 前进/后退导航时闭锁 ClosePopup 的历史记录
+local WIT_KEY_LAST_TIME = 0 -- R/U 键上次触发时间（防抖）
+local WIT_KEY_DEBOUNCE_MS = 0.3 -- 300ms 内忽略重复按键
 
 function GetHoverItem()
     local hud_ent = TheInput:GetHUDEntityUnderMouse()
@@ -2055,6 +2057,10 @@ end
 -- 调用 WIT_DISPATCH_R / WIT_DISPATCH_U 进行转发。
 
 function WIT_DISPATCH_R()
+    -- 防抖：300ms 内重复按键忽略
+    local now = GetTime()
+    if now - WIT_KEY_LAST_TIME < WIT_KEY_DEBOUNCE_MS then return end
+    WIT_KEY_LAST_TIME = now
     local ok, e = pcall(function()
         if ThePlayer == nil then return end
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end
@@ -2102,6 +2108,10 @@ end
 end
 
 function WIT_DISPATCH_U()
+    -- 防抖：300ms 内重复按键忽略
+    local now = GetTime()
+    if now - WIT_KEY_LAST_TIME < WIT_KEY_DEBOUNCE_MS then return end
+    WIT_KEY_LAST_TIME = now
     local ok, e = pcall(function()
         if ThePlayer == nil then return end
         if TheFrontEnd and TheFrontEnd.textProcessorWidget then return end

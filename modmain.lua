@@ -191,8 +191,13 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
 end)
 
 -- 配方网格点击自动跳转 WIT
--- 策略：双层钩子。widget 层标记"程序调用"，details 层只在没有标记（用户点击绕过 widget）时触发
+-- 策略：双层钩子 + 防重入冷却
+-- widget 层标记"程序调用"；details 层只在 direct call（用户点击绕过 widget）时触发
+-- 防重入：同个配方 3 秒内不重复触发，避免 ClosePopup 后焦点回网格触发无限循环
 WIT_GRID_VIA_WIDGET = false
+WIT_AUTO_JUMP_COOLDOWN = 3  -- 秒
+WIT_AUTO_JUMP_RECIPE = nil
+WIT_AUTO_JUMP_TIME = 0
 
 -- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序）
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
@@ -217,7 +222,10 @@ AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
             if is_direct then
                 local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
                 if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
-                    if WIT_NAME ~= recipe_name then
+                    -- 防重入：同配方冷却期内跳过（焦点回弹触发）
+                    if recipe_name ~= WIT_AUTO_JUMP_RECIPE or GetTime() - WIT_AUTO_JUMP_TIME >= WIT_AUTO_JUMP_COOLDOWN then
+                        WIT_AUTO_JUMP_RECIPE = recipe_name
+                        WIT_AUTO_JUMP_TIME = GetTime()
                         BuildIndexes()
                         ClosePopupAndResume()
                         CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
