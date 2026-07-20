@@ -1,7 +1,7 @@
 name = "[JEI] What Is This"
-description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.4.2] 合成菜单左键/右键/R/U键可指定默认页签；热重载支持；配方网格点击自动跳转。\n[v1.4.2] Left-click/right-click/R/U now configurable to open any default tab; hot reload support; auto-switch on recipe grid click.\n[v1.4.3] 修复部分物品图标在弹窗中无法显示的问题。\n[v1.4.3] Fixed an issue where some item icons wouldn't display in the popup.\n[v1.4.4] 修复配方网格点击自动跳转不生效的问题；修复烹饪配方索引构建时部分 Mod 料理导致崩溃的问题。\n[v1.4.4] Fixed recipe grid auto-jump not working; fixed crash in cooking recipe indexing caused by some mod dishes.\n[v1.5.0] 修复自动查询无限弹窗（ClosePopup 后焦点回网格触发无限循环）；修复 R/U 键连按导致闪退。\n[v1.5.0] Fixed auto-query infinite popup loop (focus returning to grid after ClosePopup triggered re-trigger); fixed crash from rapid R/U key presses."
+description = "悬浮物品按 R 查看配方来源，按 U 查看用途。支持合成、烹饪双向查询，实时背包材料匹配。\n\nHover over an item and press R to see how to craft it, or U to see what it can be used for.\n\n一个类似 JEI 的饥荒配方查询工具。\n\n[v1.4.2] 合成菜单左键/右键/R/U键可指定默认页签；热重载支持；配方网格点击自动跳转。\n[v1.4.2] Left-click/right-click/R/U now configurable to open any default tab; hot reload support; auto-switch on recipe grid click.\n[v1.4.3] 修复部分物品图标在弹窗中无法显示的问题。\n[v1.4.3] Fixed an issue where some item icons wouldn't display in the popup.\n[v1.4.4] 修复配方网格点击自动跳转不生效的问题；修复烹饪配方索引构建时部分 Mod 料理导致崩溃的问题。\n[v1.4.4] Fixed recipe grid auto-jump not working; fixed crash in cooking recipe indexing caused by some mod dishes.\n[v1.4.6] 修复自动查询在非合成菜单或后台刷新时误触（创建新档/采集道具等场景）；增加合成菜单开启状态校验，仅用户正在浏览合成菜单时响应。\n[v1.4.6] Fixed auto-query triggering outside crafting menu (new world creation, collecting items, etc.); added crafting menu visibility check so popup only opens when user is actively browsing recipes."
 author = "凝筝"
-version = "1.5.0"
+version = "1.4.6"
 api_version = 10
 client_only_mod = true
 dst_compatible = true

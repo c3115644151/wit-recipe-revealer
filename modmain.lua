@@ -191,15 +191,11 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
 end)
 
 -- 配方网格点击自动跳转 WIT
--- 策略：双层钩子 + 防重入冷却
--- widget 层标记"程序调用"；details 层只在 direct call（用户点击绕过 widget）时触发
--- 防重入：同个配方 3 秒内不重复触发，避免 ClosePopup 后焦点回网格触发无限循环
+-- 核心逻辑：仅当合成菜单真正可见（用户正在浏览）时才响应
+-- 通过 widget 层标记"程序调用" + details 层验证合成菜单开启状态双重过滤
 WIT_GRID_VIA_WIDGET = false
-WIT_AUTO_JUMP_COOLDOWN = 3  -- 秒
-WIT_AUTO_JUMP_RECIPE = nil
-WIT_AUTO_JUMP_TIME = 0
 
--- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序）
+-- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序/库存刷新）
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local orig = self.PopulateRecipeDetailPanel
     if orig then
@@ -212,7 +208,7 @@ AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     end
 end)
 
--- Details 层：只有 direct call（recipe grid 绕过 widget 直接调用）才触发
+-- Details 层：仅对合成菜单开启 + direct call（用户点击绕过 widget）的场景响应
 AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
     if orig_populate then
@@ -220,12 +216,11 @@ AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
             local is_direct = not WIT_GRID_VIA_WIDGET
             local ret = orig_populate(s, data, skin_name)
             if is_direct then
-                local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
-                if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
-                    -- 防重入：同配方冷却期内跳过（焦点回弹触发）
-                    if recipe_name ~= WIT_AUTO_JUMP_RECIPE or GetTime() - WIT_AUTO_JUMP_TIME >= WIT_AUTO_JUMP_COOLDOWN then
-                        WIT_AUTO_JUMP_RECIPE = recipe_name
-                        WIT_AUTO_JUMP_TIME = GetTime()
+                -- 合成菜单必须实际可见，排除后台初始化/库存刷新等静默调用
+                local crafting_hud = ThePlayer and ThePlayer.HUD and ThePlayer.HUD.controls and ThePlayer.HUD.controls.craftingmenu
+                if crafting_hud and crafting_hud:IsCraftingOpen() then
+                    local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
+                    if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
                         BuildIndexes()
                         ClosePopupAndResume()
                         CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
