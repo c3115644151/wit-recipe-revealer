@@ -184,7 +184,7 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
     self.Close = function(s, ...)
         local ret = orig_close(s, ...)
         if WIT_POPUP ~= nil then
-            WIT_POPUP:MoveTo(WIT_POPUP:GetPosition(), Vector3(405, 35, 0), 0.25)
+            ClosePopupAndResume()
         end
         return ret
     end
