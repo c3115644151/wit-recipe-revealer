@@ -190,18 +190,38 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
     end
 end)
 
--- 配方网格点击自动跳转 WIT（在 details 层拦截，配方网格直接调用 details_root:PopulateRecipeDetailPanel）
+-- 配方网格点击自动跳转 WIT
+-- 策略：双层钩子。widget 层标记"程序调用"，details 层只在没有标记（用户点击绕过 widget）时触发
+WIT_GRID_VIA_WIDGET = false
+
+-- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序）
+AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
+    local orig = self.PopulateRecipeDetailPanel
+    if orig then
+        self.PopulateRecipeDetailPanel = function(s, ...)
+            WIT_GRID_VIA_WIDGET = true
+            local ret = orig(s, ...)
+            WIT_GRID_VIA_WIDGET = false
+            return ret
+        end
+    end
+end)
+
+-- Details 层：只有 direct call（recipe grid 绕过 widget 直接调用）才触发
 AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
     if orig_populate then
         self.PopulateRecipeDetailPanel = function(s, data, skin_name)
+            local is_direct = not WIT_GRID_VIA_WIDGET
             local ret = orig_populate(s, data, skin_name)
-            local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
-            if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
-                if WIT_NAME ~= recipe_name then
-                    BuildIndexes()
-                    ClosePopup()
-                    CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
+            if is_direct then
+                local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
+                if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
+                    if WIT_NAME ~= recipe_name then
+                        BuildIndexes()
+                        ClosePopupAndResume()
+                        CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
+                    end
                 end
             end
             return ret

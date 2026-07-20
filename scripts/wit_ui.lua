@@ -310,6 +310,7 @@ end
 
 WIT_PAGE_SIZE = 3
 local WIT_UI_PAUSED_WORLD = false
+local WIT_PAUSE_TASK = nil -- 延迟暂停的任务句柄，_ResumeWorldForPopup 中取消
 local WIT_NAV_LOCK = false -- 前进/后退导航时闭锁 ClosePopup 的历史记录
 
 function GetHoverItem()
@@ -403,7 +404,16 @@ local function _PauseWorldForPopup()
     if TheNet ~= nil and TheNet:IsServerPaused(true) then
         return
     end
-    SetServerPaused(true)
+    -- 延迟到下一帧暂停，避免中途暂停导致 Update() on paused server 断言
+    -- _ResumeWorldForPopup 会取消尚未执行的延迟任务
+    if ThePlayer ~= nil then
+        WIT_PAUSE_TASK = ThePlayer:DoTaskInTime(0, function()
+            SetServerPaused(true)
+            WIT_PAUSE_TASK = nil
+        end)
+    else
+        SetServerPaused(true)
+    end
     WIT_UI_PAUSED_WORLD = true
 end
 
@@ -412,6 +422,11 @@ local function _ResumeWorldForPopup()
         return
     end
     WIT_UI_PAUSED_WORLD = false
+    -- 取消尚未执行的延迟暂停任务
+    if WIT_PAUSE_TASK ~= nil then
+        WIT_PAUSE_TASK:Cancel()
+        WIT_PAUSE_TASK = nil
+    end
     if TheNet ~= nil and TheNet:IsServerPaused(true) then
         SetServerPaused(false)
     end
