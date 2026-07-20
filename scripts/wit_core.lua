@@ -174,7 +174,7 @@ function FlattenIngredients(ingredients)
     local list = {}
     if not ingredients then return list end
     for _, ci in ipairs(ingredients) do
-        for _ = 1, ci[2] do
+        for _ = 1, (ci[2] or 1) do
             table.insert(list, ci[1])
         end
     end
@@ -268,7 +268,8 @@ function GenerateCardDef(recipe, cooking)
     for _, name in ipairs(pool) do
         local names, tags = {[name]=4}, {}
         _AccumulateIngredient(name, 4, names, tags)
-        if recipe.test("cookpot", names, tags) then
+        local ok, test_ok = pcall(recipe.test, recipe, "cookpot", names, tags)
+        if ok and test_ok then
             return {ingredients = {{name, 4}}}
         end
     end
@@ -279,7 +280,8 @@ function GenerateCardDef(recipe, cooking)
                 local names, tags = {}, {}
                 _AccumulateIngredient(name, 1, names, tags)
                 _AccumulateIngredient(filler, 3, names, tags)
-                if recipe.test("cookpot", names, tags) then
+                local ok, test_ok = pcall(recipe.test, recipe, "cookpot", names, tags)
+                if ok and test_ok then
                     return {ingredients = {{name, 1}, {filler, 3}}}
                 end
             end
@@ -292,7 +294,8 @@ function GenerateCardDef(recipe, cooking)
             local names, tags = {}, {}
             _AccumulateIngredient(a, 2, names, tags)
             _AccumulateIngredient(b, 2, names, tags)
-            if recipe.test("cookpot", names, tags) then
+            local ok, test_ok = pcall(recipe.test, recipe, "cookpot", names, tags)
+            if ok and test_ok then
                 return {ingredients = {{a, 2}, {b, 2}}}
             end
         end
@@ -344,9 +347,10 @@ function BuildIndexes()
                                 for j, ci in ipairs(frecipe.card_def.ingredients) do
                                     local n = ci[1]
                                     if j == slot_idx then n = iname end
-                                    _AccumulateIngredient(n, ci[2], names, tags)
+                                    _AccumulateIngredient(n, ci[2] or 1, names, tags)
                                 end
-                                if frecipe.test("cookpot", names, tags) then
+                                local ok, test_ok = pcall(frecipe.test, frecipe, "cookpot", names, tags)
+                                if ok and test_ok then
                                     WIT.cook_by_ingredient[iname] = WIT.cook_by_ingredient[iname] or {}
                                     local exists = false
                                     for _, r in ipairs(WIT.cook_by_ingredient[iname]) do
