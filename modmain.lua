@@ -191,38 +191,22 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
 end)
 
 -- 配方网格点击自动跳转 WIT
--- 核心逻辑：三重校验——①direct call（绕过 widget 转发 = 网格焦点事件）
---                     ②合成菜单可见（IsCraftingOpen）
---                     ③最近 100ms 内有用户交互（鼠标点击或键盘 Enter）
--- 三重过滤后能排除所有静默刷新场景（初始化/库存变更/交易范围离开等）
+-- 原生实现：钩 ImageButton:SetOnClick 包裹回调，点击时记录时间戳
+-- Details 层校验：direct call（绕过 widget = 用户点击网格） + 合成菜单可见 + 100ms 内有点击
 
 WIT_GRID_VIA_WIDGET = false
-WIT_GRID_LAST_CLICK = 0     -- 鼠标点击时间戳（ImageButton.OnControl）
-WIT_GRID_KB_ACCEPT = false   -- 键盘 Enter 标记（CraftingMenuWidget.OnControl）
+WIT_CELL_CLICK_TIME = 0
 
--- 鼠标点击检测：钩所有 ImageButton 的点击事件
+-- 捕获按键/鼠标点击：钩所有 ImageButton 的点击回调
 AddClassPostConstruct("widgets/imagebutton", function(self)
-    local orig_oc = self.OnControl
-    self.OnControl = function(btn, control, down)
-        if down and control == CONTROL_ACCEPT then
-            WIT_GRID_LAST_CLICK = GetTime()
+    if self.SetOnClick then
+        local orig = self.SetOnClick
+        self.SetOnClick = function(btn, cb)
+            return orig(btn, function(...)
+                WIT_CELL_CLICK_TIME = GetTime()
+                return cb(...)
+            end)
         end
-        return orig_oc and orig_oc(btn, control, down)
-    end
-end)
-
--- 键盘 Enter 检测：合成菜单 OnControl 中的 CONTROL_ACCEPT
-AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
-    local orig_oc = self.OnControl
-    self.OnControl = function(s, control, down)
-        if down and control == CONTROL_ACCEPT then
-            WIT_GRID_KB_ACCEPT = true
-        end
-        local ret = orig_oc(s, control, down)
-        if WIT_GRID_KB_ACCEPT then
-            WIT_GRID_KB_ACCEPT = false
-        end
-        return ret
     end
 end)
 
@@ -239,26 +223,21 @@ AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     end
 end)
 
--- Details 层：三重校验通过后才触发
+-- Details 层：有用户点击 + 合成菜单打开 + direct call 才触发
 AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
     if orig_populate then
         self.PopulateRecipeDetailPanel = function(s, data, skin_name)
             local is_direct = not WIT_GRID_VIA_WIDGET
             local ret = orig_populate(s, data, skin_name)
-            if is_direct then
-                -- 校验①：合成菜单必须实际可见
+            if is_direct and GetTime() - WIT_CELL_CLICK_TIME < 0.1 then
                 local crafting_hud = ThePlayer and ThePlayer.HUD and ThePlayer.HUD.controls and ThePlayer.HUD.controls.craftingmenu
                 if crafting_hud and crafting_hud:IsCraftingOpen() then
-                    -- 校验②：100ms 内有鼠标点击或键盘 Enter
-                    local is_user_action = WIT_GRID_KB_ACCEPT or (GetTime() - WIT_GRID_LAST_CLICK < 0.1)
-                    if is_user_action then
-                        local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
-                        if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
-                            BuildIndexes()
-                            ClosePopupAndResume()
-                            CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
-                        end
+                    local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
+                    if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
+                        BuildIndexes()
+                        ClosePopupAndResume()
+                        CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
                     end
                 end
             end
