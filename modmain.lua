@@ -202,6 +202,9 @@ AddClassPostConstruct("widgets/imagebutton", function(self)
     if self.SetOnClick then
         local orig = self.SetOnClick
         self.SetOnClick = function(btn, cb)
+            if not cb then
+                return orig(btn, nil)
+            end
             return orig(btn, function(...)
                 WIT_CELL_CLICK_TIME = GetTime()
                 return cb(...)
