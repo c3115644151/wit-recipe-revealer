@@ -221,6 +221,39 @@ AddClassPostConstruct("widgets/imagebutton", function(self)
     end
 end)
 
+-- 配方网格右键支持：拦截 grid cell 的 OnControl，处理 CONTROL_SECONDARY
+AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
+    local grid = self.recipe_grid
+    if not grid or not grid.SetItemsData then return end
+    local orig_set = grid.SetItemsData
+    grid.SetItemsData = function(g, ...)
+        local ret = orig_set(g, ...)
+        -- 遍历当前可见单元格，包装右键处理
+        for _, w in ipairs(g.widgets_to_update or {}) do
+            if w.cell_root and not w._wit_rc_hooked then
+                local orig_oc = w.cell_root.OnControl
+                w.cell_root.OnControl = function(btn, control, down)
+                    if down and control == CONTROL_SECONDARY then
+                        local recipe = w.data and w.data.recipe
+                        if recipe and recipe.name then
+                            local tab = GetModConfigData("CRAFTING_DETAIL_RCLICK")
+                            if tab ~= "disabled" then
+                                BuildIndexes()
+                                ClosePopup()
+                                CreatePopup(recipe.name, "USE", tab)
+                                return true
+                            end
+                        end
+                    end
+                    return orig_oc and orig_oc(btn, control, down)
+                end
+                w._wit_rc_hooked = true
+            end
+        end
+        return ret
+    end
+end)
+
 -- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序/库存刷新）
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local orig = self.PopulateRecipeDetailPanel
@@ -245,7 +278,8 @@ AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
                 local crafting_hud = ThePlayer and ThePlayer.HUD and ThePlayer.HUD.controls and ThePlayer.HUD.controls.craftingmenu
                 if crafting_hud and crafting_hud:IsCraftingOpen() then
                     local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
-                    if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false then
+                    if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false
+                        and recipe_name ~= WIT_NAME then
                         BuildIndexes()
                         ClosePopupAndResume()
                         CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
