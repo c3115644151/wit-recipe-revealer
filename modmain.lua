@@ -76,6 +76,7 @@ modimport("scripts/wit_lang")
 modimport("scripts/wit_core")
 modimport("scripts/wit_ui")
 modimport("scripts/keybind")
+modimport("scripts/crafting_intent_bridge")
 
 -- 读取悬浮详情配置
 WIT_HOVER_INFO = GetModConfigData("SHOW_HOVER_INFO")
@@ -191,48 +192,32 @@ AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(self)
 end)
 
 -- 配方网格点击自动跳转 WIT
--- 原生实现：钩 ImageButton:SetOnClick 包裹回调，点击时记录时间戳
--- Details 层校验：direct call（绕过 widget = 用户点击网格） + 合成菜单可见 + 100ms 内有点击
+-- 用 CraftingIntentBridge 的显式意图取代全局 ImageButton 钩子 + 时间窗方案。
+-- 网格左键点击 → MarkClick 记录意图 → Details 层用 ConsumeClickIntent 消费。
+-- 程序调用 → RunProgrammaticUpdate 声明屏蔽，避免误触发。
 
-WIT_GRID_VIA_WIDGET = false
-WIT_CELL_CLICK_TIME = 0
-
--- 捕获合成菜单网格点击：只对 CraftingMenuWidget 内部的按钮记录时间戳
-AddClassPostConstruct("widgets/imagebutton", function(self)
-    if self.SetOnClick then
-        local orig = self.SetOnClick
-        self.SetOnClick = function(btn, cb)
-            if not cb then
-                return orig(btn, nil)
-            end
-            return orig(btn, function(...)
-                -- 只记录合成菜单内部按钮的点击，排除物品栏/过滤按钮等其他 UI
-                local p = btn:GetParent()
-                while p do
-                    if p.name == "CraftingMenuWidget" then
-                        WIT_CELL_CLICK_TIME = GetTime()
-                        break
-                    end
-                    p = p:GetParent()
-                end
-                return cb(...)
-            end)
-        end
-    end
-end)
-
--- 配方网格右键支持：拦截 grid cell 的 OnControl，处理 CONTROL_SECONDARY
+-- 配方网格交互支持：
+--   左键点击 → 记录点击意图，供 Details 层判断是否打开 WIT
+--   右键点击 → 直接打开 WIT USE 页签
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local grid = self.recipe_grid
     if not grid or not grid.SetItemsData then return end
     local orig_set = grid.SetItemsData
     grid.SetItemsData = function(g, ...)
         local ret = orig_set(g, ...)
-        -- 遍历当前可见单元格，包装右键处理
+        -- 遍历当前可见单元格，包装交互处理
         for _, w in ipairs(g.widgets_to_update or {}) do
-            if w.cell_root and not w._wit_rc_hooked then
+            if w.cell_root and not w._wit_grid_hooked then
                 local orig_oc = w.cell_root.OnControl
                 w.cell_root.OnControl = function(btn, control, down)
+                    -- 左键点击 → 记录点击意图（Details 层消费）
+                    if down and control == CONTROL_ACCEPT then
+                        local recipe = w.data and w.data.recipe
+                        if recipe and recipe.name then
+                            WIT_CRAFT_INTENT:MarkClick(recipe.name)
+                        end
+                    end
+                    -- 右键点击 → 直接打开 WIT
                     if down and control == CONTROL_SECONDARY then
                         local recipe = w.data and w.data.recipe
                         if recipe and recipe.name then
@@ -247,44 +232,43 @@ AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
                     end
                     return orig_oc and orig_oc(btn, control, down)
                 end
-                w._wit_rc_hooked = true
+                w._wit_grid_hooked = true
             end
         end
         return ret
     end
 end)
 
--- Widget 层：记录通过转发方法的调用（程序调用，如初始化/过滤/排序/库存刷新）
+-- Widget 层：程序调用通过 suppress 机制抑制 WIT 自动打开
 AddClassPostConstruct("widgets/redux/craftingmenu_widget", function(self)
     local orig = self.PopulateRecipeDetailPanel
     if orig then
         self.PopulateRecipeDetailPanel = function(s, ...)
-            WIT_GRID_VIA_WIDGET = true
+            WIT_CRAFT_INTENT.suppress_auto_open = true
             local ret = orig(s, ...)
-            WIT_GRID_VIA_WIDGET = false
+            WIT_CRAFT_INTENT.suppress_auto_open = false
             return ret
         end
     end
 end)
 
--- Details 层：有用户点击 + 合成菜单打开 + direct call 才触发
+-- Details 层：通过桥接器的显式意图判断是否为用户点击触发的 WIT 打开
 AddClassPostConstruct("widgets/redux/craftingmenu_details", function(self)
     local orig_populate = self.PopulateRecipeDetailPanel
     if orig_populate then
         self.PopulateRecipeDetailPanel = function(s, data, skin_name)
-            local is_direct = not WIT_GRID_VIA_WIDGET
             local ret = orig_populate(s, data, skin_name)
-            if is_direct and GetTime() - WIT_CELL_CLICK_TIME < 0.1 then
-                local crafting_hud = ThePlayer and ThePlayer.HUD and ThePlayer.HUD.controls and ThePlayer.HUD.controls.craftingmenu
-                if crafting_hud and crafting_hud:IsCraftingOpen() then
-                    local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
-                    if type(recipe_name) == "string" and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false
-                        and recipe_name ~= WIT_NAME then
-                        BuildIndexes()
-                        ClosePopupAndResume()
-                        CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
-                    end
-                end
+            local recipe_name = (type(data) == "table" and data.recipe and data.recipe.name) or nil
+            if type(recipe_name) == "string"
+                and WIT_CRAFT_INTENT:ConsumeClickIntent(recipe_name)
+                and ThePlayer and ThePlayer.HUD and ThePlayer.HUD.controls
+                and ThePlayer.HUD.controls.craftingmenu
+                and ThePlayer.HUD.controls.craftingmenu:IsCraftingOpen()
+                and GetModConfigData("CRAFTING_GRID_AUTO_OPEN") ~= false
+                and recipe_name ~= WIT_NAME then
+                BuildIndexes()
+                ClosePopupAndResume()
+                CreatePopup(recipe_name, "SOURCE", GetModConfigData("CRAFTING_DETAIL_LCLICK"))
             end
             return ret
         end

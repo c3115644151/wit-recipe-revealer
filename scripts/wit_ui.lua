@@ -593,34 +593,39 @@ function JumpToCraft(recipe)
     local menu = hud.controls and hud.controls.craftingmenu
     if menu and menu.Open then
         -- Redux crafting menu (controls.craftingmenu IS CraftingMenuHUD)
-        menu:Open(false)
-        -- Get last used skin for this recipe
-        local skin = Profile and Profile:GetLastUsedSkinForItem(recipe.name)
-        menu:PopulateRecipeDetailPanel(recipe.name, skin)
-        -- Scroll the grid to this recipe + switch to its own filter tab
-        local w = menu.craftingmenu -- CraftingMenuWidget
-        local recipe_data = menu.valid_recipes and menu.valid_recipes[recipe.name]
-        if recipe_data and w and w.recipe_grid then
-            local filter = _FindRecipeFilter(recipe.name) or CRAFTING_FILTERS.EVERYTHING.name
-            if w.SelectFilter then
-                w:SelectFilter(filter)
+        -- 用桥接器包装程序性面板调用，避免反向触发 WIT 联动
+        WIT_CRAFT_INTENT:RunProgrammaticUpdate(function()
+            menu:Open(false)
+            -- Get last used skin for this recipe
+            local skin = Profile and Profile:GetLastUsedSkinForItem(recipe.name)
+            menu:PopulateRecipeDetailPanel(recipe.name, skin)
+            -- Scroll the grid to this recipe + switch to its own filter tab
+            local w = menu.craftingmenu -- CraftingMenuWidget
+            local recipe_data = menu.valid_recipes and menu.valid_recipes[recipe.name]
+            if recipe_data and w and w.recipe_grid then
+                local filter = _FindRecipeFilter(recipe.name) or CRAFTING_FILTERS.EVERYTHING.name
+                if w.SelectFilter then
+                    w:SelectFilter(filter)
+                end
+                local idx = w.recipe_grid:FindDataIndex(recipe_data)
+                if idx then
+                    w.recipe_grid:ScrollToDataIndex(idx)
+                end
             end
-            local idx = w.recipe_grid:FindDataIndex(recipe_data)
-            if idx then
-                w.recipe_grid:ScrollToDataIndex(idx)
-            end
-        end
+        end)
         return
     end
 
     -- Fallback: classic crafting menu
-    hud:OpenCrafting()
-    local cm = hud.controls and hud.controls.craftingmenu and hud.controls.craftingmenu.craftingmenu
-    if cm == nil then return end
-    cm:SelectFilter(CRAFTING_FILTERS.EVERYTHING.name)
-    local rd = cm.crafting_hud.valid_recipes[recipe.name]
-    if rd == nil then rd = { recipe = recipe, meta = { build_state = "prototype", can_build = false } } end
-    cm:PopulateRecipeDetailPanel(rd, nil)
+    WIT_CRAFT_INTENT:RunProgrammaticUpdate(function()
+        hud:OpenCrafting()
+        local cm = hud.controls and hud.controls.craftingmenu and hud.controls.craftingmenu.craftingmenu
+        if cm == nil then return end
+        cm:SelectFilter(CRAFTING_FILTERS.EVERYTHING.name)
+        local rd = cm.crafting_hud.valid_recipes[recipe.name]
+        if rd == nil then rd = { recipe = recipe, meta = { build_state = "prototype", can_build = false } } end
+        cm:PopulateRecipeDetailPanel(rd, nil)
+    end)
 end
 
 -- ============================
@@ -1866,8 +1871,8 @@ function CreatePopup(name, mode, preferred_cat)
                     opt.hover = WIT_TXT.CFG_DETAIL_LCLICK_HOVER
                     opt.options[1].description = WIT_TXT.TAB_DISABLED
                     opt.options[2].description = WIT_TXT.TAB_SOURCES
-                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
-                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[3].description = WIT_TXT.TAB_CRAFT_FROM
+                    opt.options[4].description = WIT_TXT.TAB_COOK_FROM
                     opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
                     opt.options[6].description = WIT_TXT.TAB_COOK_USE
                     opt.options[7].description = WIT_TXT.TAB_INFO
@@ -1876,8 +1881,8 @@ function CreatePopup(name, mode, preferred_cat)
                     opt.hover = WIT_TXT.CFG_DETAIL_RCLICK_HOVER
                     opt.options[1].description = WIT_TXT.TAB_DISABLED
                     opt.options[2].description = WIT_TXT.TAB_SOURCES
-                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
-                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[3].description = WIT_TXT.TAB_CRAFT_FROM
+                    opt.options[4].description = WIT_TXT.TAB_COOK_FROM
                     opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
                     opt.options[6].description = WIT_TXT.TAB_COOK_USE
                     opt.options[7].description = WIT_TXT.TAB_INFO
@@ -1886,8 +1891,8 @@ function CreatePopup(name, mode, preferred_cat)
                     opt.hover = WIT_TXT.CFG_POPUP_LCLICK_HOVER
                     opt.options[1].description = WIT_TXT.TAB_DISABLED
                     opt.options[2].description = WIT_TXT.TAB_SOURCES
-                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
-                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[3].description = WIT_TXT.TAB_CRAFT_FROM
+                    opt.options[4].description = WIT_TXT.TAB_COOK_FROM
                     opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
                     opt.options[6].description = WIT_TXT.TAB_COOK_USE
                     opt.options[7].description = WIT_TXT.TAB_INFO
@@ -1896,8 +1901,8 @@ function CreatePopup(name, mode, preferred_cat)
                     opt.hover = WIT_TXT.CFG_POPUP_RCLICK_HOVER
                     opt.options[1].description = WIT_TXT.TAB_DISABLED
                     opt.options[2].description = WIT_TXT.TAB_SOURCES
-                    opt.options[3].description = WIT_TXT.TAB_CRAFTING
-                    opt.options[4].description = WIT_TXT.TAB_COOKING
+                    opt.options[3].description = WIT_TXT.TAB_CRAFT_FROM
+                    opt.options[4].description = WIT_TXT.TAB_COOK_FROM
                     opt.options[5].description = WIT_TXT.TAB_CRAFT_USE
                     opt.options[6].description = WIT_TXT.TAB_COOK_USE
                     opt.options[7].description = WIT_TXT.TAB_INFO
