@@ -197,7 +197,7 @@ end)
 WIT_GRID_VIA_WIDGET = false
 WIT_CELL_CLICK_TIME = 0
 
--- 捕获按键/鼠标点击：钩所有 ImageButton 的点击回调
+-- 捕获合成菜单网格点击：只对 CraftingMenuWidget 内部的按钮记录时间戳
 AddClassPostConstruct("widgets/imagebutton", function(self)
     if self.SetOnClick then
         local orig = self.SetOnClick
@@ -206,7 +206,15 @@ AddClassPostConstruct("widgets/imagebutton", function(self)
                 return orig(btn, nil)
             end
             return orig(btn, function(...)
-                WIT_CELL_CLICK_TIME = GetTime()
+                -- 只记录合成菜单内部按钮的点击，排除物品栏/过滤按钮等其他 UI
+                local p = btn:GetParent()
+                while p do
+                    if p.name == "CraftingMenuWidget" then
+                        WIT_CELL_CLICK_TIME = GetTime()
+                        break
+                    end
+                    p = p:GetParent()
+                end
                 return cb(...)
             end)
         end
